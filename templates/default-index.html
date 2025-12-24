@@ -91,9 +91,9 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
     <p><a href="/rss.xml">RSS</a> | <a href="/sitemap.xml">Sitemap</a></p>
   </main>
 
-  <script src="https://cdn.jsdelivr.net/npm/fuse.js@7.0.0"></script>
+  <script src="https://cdn.jsdelivr.net/npm/minisearch@7.1.0/dist/umd/index.min.js"></script>
   <script>
-    let fuse;
+    let miniSearch;
     const searchInput = document.getElementById('search');
     const searchResults = document.getElementById('search-results');
     const postsList = document.getElementById('posts-list');
@@ -101,10 +101,17 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
     fetch('/search.json')
       .then(r => r.json())
       .then(data => {
-        fuse = new Fuse(data, {
-          keys: ['title', 'content', 'tags', 'description'],
-          threshold: 0.3
+        miniSearch = new MiniSearch({
+          fields: ['title', 'content', 'tags', 'description'],
+          storeFields: ['title', 'slug', 'date', 'description'],
+          searchOptions: {
+            boost: { title: 2, description: 1.5 },
+            fuzzy: 0.2,
+            prefix: true
+          }
         });
+
+        miniSearch.addAll(data);
       })
       .catch(err => console.error('Search failed:', err));
 
@@ -117,24 +124,23 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
         return;
       }
 
-      if (!fuse) {
+      if (!miniSearch) {
         searchResults.innerHTML = '<p>Loading...</p>';
         searchResults.style.display = 'block';
         return;
       }
 
-      const results = fuse.search(query);
+      const results = miniSearch.search(query);
 
       if (results.length === 0) {
         searchResults.innerHTML = '<p>No results found.</p>';
       } else {
         searchResults.innerHTML = results.slice(0, 10).map(result => {
-          const post = result.item;
           return `
             <div class="search-result">
-              <h4><a href="/post/${post.slug}/">${post.title}</a></h4>
-              <div class="meta">${post.date}</div>
-              ${post.description ? `<p>${post.description}</p>` : ''}
+              <h4><a href="/post/${result.slug}/">${result.title}</a></h4>
+              <div class="meta">${result.date}</div>
+              ${result.description ? `<p>${result.description}</p>` : ''}
             </div>
           `;
         }).join('');

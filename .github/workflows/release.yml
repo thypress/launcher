@@ -21,6 +21,9 @@ jobs:
           - os: ubuntu-latest
             target: linux-x64
             artifact: thypress-linux-x64
+          - os: ubuntu-latest
+            target: linux-arm64
+            artifact: thypress-linux-arm64
           - os: macos-latest
             target: macos-x64
             artifact: thypress-macos-x64
@@ -41,8 +44,13 @@ jobs:
       - name: Install dependencies
         run: bun install
 
-      - name: Build executable
-        run: bun build ./src/cli.js --compile --outfile ${{ matrix.artifact }}
+      - name: Build executable (x64/arm64)
+        run: bun build ./src/cli.js --compile --target=bun-${{ matrix.target }} --outfile ${{ matrix.artifact }}
+        if: matrix.target != 'windows-x64'
+
+      - name: Build executable (Windows)
+        run: bun build ./src/cli.js --compile --target=bun-windows-x64 --outfile ${{ matrix.artifact }}
+        if: matrix.target == 'windows-x64'
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -71,6 +79,7 @@ jobs:
           name: thypress ${{ inputs.version || github.ref_name }}
           files: |
             ./artifacts/thypress-linux-x64/thypress-linux-x64
+            ./artifacts/thypress-linux-arm64/thypress-linux-arm64
             ./artifacts/thypress-macos-x64/thypress-macos-x64
             ./artifacts/thypress-macos-arm64/thypress-macos-arm64
             ./artifacts/thypress-windows-x64/thypress-windows-x64.exe
@@ -80,13 +89,13 @@ jobs:
             Dead simple markdown blog/docs engine. One binary, zero config.
 
             ### Features
-            - ✅ Single binary installation
-            - ✅ Folder-based navigation for docs
-            - ✅ Client-side search
-            - ✅ Image optimization (WebP + responsive)
-            - ✅ Syntax highlighting
-            - ✅ RSS feed & Sitemap
-            - ✅ Hot reload
+            - ✓ Single binary installation
+            - ✓ Folder-based navigation for docs
+            - ✓ Client-side search (MiniSearch)
+            - ✓ Image optimization (WebP + responsive)
+            - ✓ Syntax highlighting
+            - ✓ RSS feed & Sitemap
+            - ✓ Hot reload
 
             ### Installation
 
@@ -96,7 +105,8 @@ jobs:
 ```
 
             **Manual Download:**
-            - **Linux**: thypress-linux-x64
+            - **Linux x64**: thypress-linux-x64
+            - **Linux ARM64**: thypress-linux-arm64 (Raspberry Pi, AWS Graviton)
             - **macOS Intel**: thypress-macos-x64
             - **macOS ARM**: thypress-macos-arm64
             - **Windows**: thypress-windows-x64.exe

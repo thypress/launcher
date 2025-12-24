@@ -35,14 +35,14 @@ esac
 
 # Download latest release
 echo "Fetching latest version..."
-LATEST_VERSION=$(curl -s https://api.github.com/repos/yourusername/thypress/releases/latest | grep '"tag_name"' | cut -d'"' -f4)
+LATEST_VERSION=$(curl -s https://api.github.com/repos/thypress/binder/releases/latest | grep '"tag_name"' | cut -d'"' -f4)
 
 if [ -z "$LATEST_VERSION" ]; then
   echo "✗ Could not fetch latest version"
   exit 1
 fi
 
-DOWNLOAD_URL="https://github.com/yourusername/thypress/releases/download/${LATEST_VERSION}/${BINARY}"
+DOWNLOAD_URL="https://github.com/thypress/binder/releases/download/${LATEST_VERSION}/${BINARY}"
 
 echo "Downloading ${BINARY}..."
 curl -L -o thypress "$DOWNLOAD_URL"

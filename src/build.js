@@ -7,6 +7,7 @@
 
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 import { fileURLToPath } from 'url';
 import {
   loadAllPosts,
@@ -26,6 +27,9 @@ import {
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const BUILD_DIR = path.join(__dirname, '../build');
 const CACHE_DIR = path.join(__dirname, '../.cache');
+
+// Determine optimal concurrency based on CPU cores
+const CONCURRENCY = Math.max(2, Math.floor(os.availableParallelism() * 0.75));
 
 function ensureBuildDir() {
   if (fs.existsSync(BUILD_DIR)) {
@@ -101,15 +105,21 @@ async function optimizeImagesFromAssets() {
   console.log(`Optimizing ${images.length} images from /assets/img...`);
 
   let optimized = 0;
-  for (const image of images) {
-    const imagePath = path.join(imagesDir, image);
-    try {
-      await optimizeImage(imagePath, outputDir);
-      optimized++;
-      process.stdout.write(`  ${optimized}/${images.length}\r`);
-    } catch (error) {
-      console.error(`\n  Error optimizing ${image}:`, error.message);
-    }
+
+  // Process images in batches with concurrency control
+  for (let i = 0; i < images.length; i += CONCURRENCY) {
+    const batch = images.slice(i, i + CONCURRENCY);
+
+    await Promise.all(batch.map(async (image) => {
+      const imagePath = path.join(imagesDir, image);
+      try {
+        await optimizeImage(imagePath, outputDir);
+        optimized++;
+        process.stdout.write(`  ${optimized}/${images.length}\r`);
+      } catch (error) {
+        console.error(`\n  Error optimizing ${image}:`, error.message);
+      }
+    }));
   }
 
   console.log(`\n✓ Optimized ${optimized} images from /assets/img`);
@@ -145,7 +155,7 @@ function needsOptimization(sourcePath, outputDir, basename, hash) {
 }
 
 async function optimizeImagesFromPosts(imageReferences, outputBaseDir, showProgress = true) {
-  const postsDir = process.env.THYPRESS_POSTS_DIR || path.join(__dirname, '../posts');
+  const postsDir = process.env.thypress_POSTS_DIR || path.join(__dirname, '../posts');
 
   const uniqueImages = new Map();
   for (const [postPath, images] of imageReferences) {
@@ -184,24 +194,31 @@ async function optimizeImagesFromPosts(imageReferences, outputBaseDir, showProgr
 
   if (showProgress) {
     console.log(`Optimizing images: ${needsUpdate.length}/${imagesToOptimize.length} (${imagesToOptimize.length - needsUpdate.length} cached)`);
+    console.log(`Using ${CONCURRENCY} parallel workers`);
   }
 
   let optimized = 0;
-  for (const img of needsUpdate) {
-    const outputDir = path.join(outputBaseDir, 'post', path.dirname(img.outputPath));
-    fs.mkdirSync(outputDir, { recursive: true });
 
-    try {
-      await optimizeImage(img.resolvedPath, outputDir);
-      optimized++;
-      if (showProgress) {
-        const percentage = Math.floor((optimized / needsUpdate.length) * 100);
-        const bar = '█'.repeat(Math.floor(percentage / 5)) + '░'.repeat(20 - Math.floor(percentage / 5));
-        process.stdout.write(`  ${bar} ${percentage}% (${optimized}/${needsUpdate.length})\r`);
+  // Process images in batches with concurrency control
+  for (let i = 0; i < needsUpdate.length; i += CONCURRENCY) {
+    const batch = needsUpdate.slice(i, i + CONCURRENCY);
+
+    await Promise.all(batch.map(async (img) => {
+      const outputDir = path.join(outputBaseDir, 'post', path.dirname(img.outputPath));
+      fs.mkdirSync(outputDir, { recursive: true });
+
+      try {
+        await optimizeImage(img.resolvedPath, outputDir);
+        optimized++;
+        if (showProgress) {
+          const percentage = Math.floor((optimized / needsUpdate.length) * 100);
+          const bar = '█'.repeat(Math.floor(percentage / 5)) + '░'.repeat(20 - Math.floor(percentage / 5));
+          process.stdout.write(`  ${bar} ${percentage}% (${optimized}/${needsUpdate.length})\r`);
+        }
+      } catch (error) {
+        console.error(`\n  Error optimizing ${img.outputPath}:`, error.message);
       }
-    } catch (error) {
-      console.error(`\n  Error optimizing ${img.outputPath}:`, error.message);
-    }
+    }));
   }
 
   if (showProgress && needsUpdate.length > 0) {

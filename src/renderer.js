@@ -26,6 +26,9 @@ const __dirname = fileURLToPath(new URL('.', import.meta.url));
 export const POSTS_PER_PAGE = 10;
 const IMAGE_SIZES = [400, 800, 1200];
 
+// Cache navigation hash for incremental rebuilds
+let navigationHash = null;
+
 // Register Handlebars helpers
 Handlebars.registerHelper('eq', (a, b) => a === b);
 
@@ -57,7 +60,7 @@ function setupImageOptimizer(md) {
 
     // Get the context from env (post's relative path)
     const postRelativePath = env.postRelativePath || '';
-    const postsDir = process.env.THYPRESS_POSTS_DIR || path.join(__dirname, '../posts');
+    const postsDir = process.env.thypress_POSTS_DIR || path.join(__dirname, '../posts');
 
     // Resolve the image path relative to the post
     let resolvedImagePath;
@@ -186,8 +189,8 @@ function buildNavigationTree(postsDir, postsCache = new Map()) {
             children: children
           });
         }
-      } else if (entry.name.endsWith('.md')) {
-        const slug = slugify(relPath.replace('.md', ''));
+      } else if (entry.name.endsWith('.md') || entry.name.endsWith('.txt')) {
+        const slug = slugify(relPath.replace(/\.(md|txt)$/, ''));
 
         let title;
         const post = postsCache.get(slug);
@@ -195,7 +198,7 @@ function buildNavigationTree(postsDir, postsCache = new Map()) {
           title = post.title;
         } else {
           title = entry.name
-            .replace('.md', '')
+            .replace(/\.(md|txt)$/, '')
             .replace(/^\d{4}-\d{2}-\d{2}-/, '')
             .replace(/-/g, ' ');
         }
@@ -223,13 +226,36 @@ function buildNavigationTree(postsDir, postsCache = new Map()) {
   return processDirectory(postsDir);
 }
 
+function extractTitleFromContent(content, isMarkdown) {
+  if (!isMarkdown) {
+    return null; // Don't parse markdown syntax in .txt files
+  }
+
+  // Try to find first H1 heading
+  const h1Match = content.match(/^#\s+(.+)$/m);
+  if (h1Match) {
+    return h1Match[1].trim();
+  }
+
+  return null;
+}
+
+function extractDateFromFilename(filename) {
+  // Try to extract date from filename (YYYY-MM-DD format)
+  const dateMatch = filename.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (dateMatch) {
+    return dateMatch[1];
+  }
+  return null;
+}
+
 export function loadAllPosts() {
   const postsCache = new Map();
   const slugMap = new Map();
   const imageReferences = new Map();
   const brokenImages = [];
 
-  const postsDir = process.env.THYPRESS_POSTS_DIR || path.join(__dirname, '../posts');
+  const postsDir = process.env.thypress_POSTS_DIR || path.join(__dirname, '../posts');
 
   function loadPostsFromDir(dir, relativePath = '') {
     const entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -240,16 +266,17 @@ export function loadAllPosts() {
 
       if (entry.isDirectory()) {
         loadPostsFromDir(fullPath, relPath);
-      } else if (entry.name.endsWith('.md')) {
+      } else if (entry.name.endsWith('.md') || entry.name.endsWith('.txt')) {
         try {
-          const slug = slugify(relPath.replace('.md', ''));
+          const isMarkdown = entry.name.endsWith('.md');
+          const slug = slugify(relPath.replace(/\.(md|txt)$/, ''));
           slugMap.set(relPath, slug);
 
           const rawContent = fs.readFileSync(fullPath, 'utf-8');
           const { data: frontMatter, content } = matter(rawContent);
 
           const env = { postRelativePath: relPath, referencedImages: [] };
-          const renderedHtml = md.render(content, env);
+          const renderedHtml = isMarkdown ? md.render(content, env) : `<pre>${content}</pre>`;
 
           if (env.referencedImages.length > 0) {
             imageReferences.set(relPath, env.referencedImages);
@@ -265,14 +292,47 @@ export function loadAllPosts() {
             }
           }
 
-          const title = frontMatter.title || entry.name
-            .replace('.md', '')
-            .replace(/^\d{4}-\d{2}-\d{2}-/, '')
-            .replace(/-/g, ' ');
+          // Smart title extraction with priority order
+          let title = frontMatter.title;
 
-          const date = frontMatter.date
-            ? (frontMatter.date instanceof Date ? frontMatter.date.toISOString().split('T')[0] : frontMatter.date)
-            : (entry.name.match(/^\d{4}-\d{2}-\d{2}/) ? entry.name.substring(0, 10) : new Date().toISOString().split('T')[0]);
+          if (!title) {
+            // Try to extract from first H1 (only for markdown)
+            title = extractTitleFromContent(content, isMarkdown);
+          }
+
+          if (!title) {
+            // Use filename without date prefix
+            title = entry.name
+              .replace(/\.(md|txt)$/, '')
+              .replace(/^\d{4}-\d{2}-\d{2}-/, '')
+              .replace(/[-_]/g, ' ')
+              .trim();
+          }
+
+          if (!title) {
+            // Fallback to raw filename
+            title = entry.name.replace(/\.(md|txt)$/, '');
+          }
+
+          // Smart date extraction with priority order
+          let date = frontMatter.date;
+
+          if (!date) {
+            // Try filename date prefix
+            date = extractDateFromFilename(entry.name);
+          }
+
+          if (!date) {
+            // Use file modification time
+            const stats = fs.statSync(fullPath);
+            date = stats.mtime.toISOString().split('T')[0];
+          }
+
+          // Normalize date format
+          if (date instanceof Date) {
+            date = date.toISOString().split('T')[0];
+          }
+
           const tags = Array.isArray(frontMatter.tags) ? frontMatter.tags : (frontMatter.tags ? [frontMatter.tags] : []);
           const description = frontMatter.description || '';
 
@@ -302,7 +362,16 @@ export function loadAllPosts() {
     console.error(`Error reading posts directory: ${error.message}`);
   }
 
-  const navigation = buildNavigationTree(postsDir, postsCache);
+  // Hash-based navigation rebuild
+  const newHash = crypto.createHash('md5')
+    .update(JSON.stringify(Array.from(postsCache.keys()).sort()))
+    .digest('hex');
+
+  let navigation = [];
+  if (newHash !== navigationHash) {
+    navigation = buildNavigationTree(postsDir, postsCache);
+    navigationHash = newHash;
+  }
 
   return { postsCache, slugMap, navigation, imageReferences, brokenImages };
 }
@@ -475,12 +544,17 @@ export function generateSearchIndex(postsCache) {
   const allPosts = getPostsSorted(postsCache);
 
   const searchData = allPosts.map(post => ({
+    id: post.slug,
     title: post.title,
     slug: post.slug,
     date: post.date,
     tags: post.tags,
     description: post.description,
-    content: post.content.substring(0, 1000)
+    content: post.content
+      .replace(/[#*`\[\]]/g, '') // Remove markdown syntax
+      .replace(/\s+/g, ' ')      // Collapse whitespace
+      .trim()
+      .substring(0, 5000)         // Cap at 5000 chars
   }));
 
   return JSON.stringify(searchData, null, 0);

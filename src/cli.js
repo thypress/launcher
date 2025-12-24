@@ -5,13 +5,19 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
-#!/usr/bin/env bun
+// #!/usr/bin/env bun
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { EMBEDDED_TEMPLATES } from './embedded-templates.js';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
+
+// Import version from package.json
+const packageJson = JSON.parse(
+  fs.readFileSync(path.join(__dirname, '../package.json'), 'utf-8')
+);
+const VERSION = packageJson.version;
 
 // Parse arguments
 function parseArgs() {
@@ -27,6 +33,12 @@ function parseArgs() {
     // Check for help
     if (arg === 'help' || arg === '--help' || arg === '-h') {
       command = 'help';
+      break;
+    }
+
+    // Check for version
+    if (arg === 'version' || arg === '--version' || arg === '-v') {
+      command = 'version';
       break;
     }
 
@@ -220,7 +232,7 @@ description: A short description
 - Write in Markdown
 - Organize with tags
 - Folder-based navigation for docs
-- Client-side search with Fuse.js
+- Client-side search with MiniSearch
 - Auto-generated RSS feed
 - Auto-generated sitemap
 - Image optimization (WebP + responsive)
@@ -250,8 +262,8 @@ async function serve() {
   createExamplePost();
 
   // Set environment variable for renderer
-  process.env.THYPRESS_POSTS_DIR = postsDir;
-  process.env.THYPRESS_OPEN_BROWSER = openBrowser ? 'true' : 'false';
+  process.env.thypress_POSTS_DIR = postsDir;
+  process.env.thypress_OPEN_BROWSER = openBrowser ? 'true' : 'false';
 
   // Change to working directory before starting server
   process.chdir(workingDir);
@@ -264,7 +276,7 @@ async function build() {
   ensureDefaults();
 
   // Set environment variable for renderer
-  process.env.THYPRESS_POSTS_DIR = postsDir;
+  process.env.thypress_POSTS_DIR = postsDir;
 
   // Change to working directory before building
   process.chdir(workingDir);
@@ -277,7 +289,7 @@ async function buildAndServe() {
   console.log(`Using posts directory: ${postsDir}\n`);
   ensureDefaults();
 
-  process.env.THYPRESS_POSTS_DIR = postsDir;
+  process.env.thypress_POSTS_DIR = postsDir;
   process.chdir(workingDir);
 
   // First build
@@ -318,6 +330,10 @@ async function buildAndServe() {
   }
 
   const port = await findAvailablePort(START_PORT);
+
+  if (port !== START_PORT) {
+    console.log(`ℹ️  Port ${START_PORT} in use, using ${port} instead\n`);
+  }
 
   Bun.serve({
     port,
@@ -395,9 +411,13 @@ function clean() {
   }
 }
 
+function showVersion() {
+  console.log(`thypress v${VERSION}`);
+}
+
 function help() {
   console.log(`
-thypress v0.1 - Simple markdown blog/docs engine
+thypress v${VERSION} - Simple markdown blog/docs engine
 
 Usage:
   thypress [command] [options]
@@ -407,6 +427,7 @@ Commands:
   build, b                Build static site to /build
   build --serve           Build static site and preview it
   clean                   Delete .cache directory
+  version, -v, --version  Show version
   help, --help, -h        Show this help
 
 Options:
@@ -436,7 +457,7 @@ Features:
   • Folder-based navigation (for docs)
   • Images alongside posts (auto-optimized)
   • Tag pages
-  • Client-side search (Fuse.js)
+  • Client-side search (MiniSearch)
   • RSS feed (/rss.xml)
   • Sitemap (/sitemap.xml)
   • Image optimization (WebP + responsive)
@@ -470,6 +491,9 @@ switch (command) {
     break;
   case 'clean':
     clean();
+    break;
+  case 'version':
+    showVersion();
     break;
   case 'help':
     help();

@@ -32,6 +32,7 @@ import { optimizeToCache, CACHE_DIR } from './build.js';
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const START_PORT = 3009;
 const MAX_PORT_TRIES = 100;
+const DEBOUNCE_DELAY = 500; // ms
 
 const md = new MarkdownIt();
 md.use(markdownItHighlight);
@@ -48,6 +49,7 @@ let brokenImages = [];
 // Build state
 let isBuildingStatic = false;
 let isOptimizingImages = false;
+let optimizeDebounceTimer = null;
 
 function getMimeType(filePath) {
   const ext = filePath.split('.').pop().toLowerCase();
@@ -79,12 +81,19 @@ async function reloadPosts() {
   imageReferences = result.imageReferences;
   brokenImages = result.brokenImages;
 
-  // Re-optimize images if needed
-  if (!isOptimizingImages) {
-    isOptimizingImages = true;
-    await optimizeToCache(imageReferences, brokenImages);
-    isOptimizingImages = false;
-  }
+  // Schedule image optimization with debouncing
+  scheduleImageOptimization();
+}
+
+function scheduleImageOptimization() {
+  clearTimeout(optimizeDebounceTimer);
+  optimizeDebounceTimer = setTimeout(async () => {
+    if (!isOptimizingImages) {
+      isOptimizingImages = true;
+      await optimizeToCache(imageReferences, brokenImages);
+      isOptimizingImages = false;
+    }
+  }, DEBOUNCE_DELAY);
 }
 
 function reloadTemplates() {
@@ -92,28 +101,57 @@ function reloadTemplates() {
 }
 
 function loadSinglePost(filename) {
-  if (!filename.endsWith('.md')) return;
+  if (!filename.endsWith('.md') && !filename.endsWith('.txt')) return;
 
-  const postsDir = process.env.THYPRESS_POSTS_DIR || path.join(__dirname, '../posts');
+  const postsDir = process.env.thypress_POSTS_DIR || path.join(__dirname, '../posts');
 
   try {
-    const slug = slugify(filename.replace('.md', ''));
+    const isMarkdown = filename.endsWith('.md');
+    const slug = slugify(filename.replace(/\.(md|txt)$/, ''));
     slugMap.set(filename, slug);
 
     const rawContent = fs.readFileSync(path.join(postsDir, filename), 'utf-8');
     const { data: frontMatter, content } = matter(rawContent);
 
     const env = { postRelativePath: filename, referencedImages: [] };
-    const renderedHtml = md.render(content, env);
+    const renderedHtml = isMarkdown ? md.render(content, env) : `<pre>${content}</pre>`;
 
     if (env.referencedImages.length > 0) {
       imageReferences.set(filename, env.referencedImages);
     }
 
-    const title = frontMatter.title || slug.replace(/-/g, ' ');
-    const date = frontMatter.date
-      ? (frontMatter.date instanceof Date ? frontMatter.date.toISOString().split('T')[0] : frontMatter.date)
-      : (filename.match(/^\d{4}-\d{2}-\d{2}/) ? filename.substring(0, 10) : new Date().toISOString().split('T')[0]);
+    // Smart title extraction
+    let title = frontMatter.title;
+    if (!title && isMarkdown) {
+      const h1Match = content.match(/^#\s+(.+)$/m);
+      if (h1Match) {
+        title = h1Match[1].trim();
+      }
+    }
+    if (!title) {
+      title = filename
+        .replace(/\.(md|txt)$/, '')
+        .replace(/^\d{4}-\d{2}-\d{2}-/, '')
+        .replace(/[-_]/g, ' ')
+        .trim() || filename.replace(/\.(md|txt)$/, '');
+    }
+
+    // Smart date extraction
+    let date = frontMatter.date;
+    if (!date) {
+      const dateMatch = filename.match(/^(\d{4}-\d{2}-\d{2})/);
+      if (dateMatch) {
+        date = dateMatch[1];
+      }
+    }
+    if (!date) {
+      const stats = fs.statSync(path.join(postsDir, filename));
+      date = stats.mtime.toISOString().split('T')[0];
+    }
+    if (date instanceof Date) {
+      date = date.toISOString().split('T')[0];
+    }
+
     const tags = Array.isArray(frontMatter.tags) ? frontMatter.tags : (frontMatter.tags ? [frontMatter.tags] : []);
     const description = frontMatter.description || '';
 
@@ -160,14 +198,14 @@ if (!isOptimizingImages && imageReferences.size > 0) {
 }
 
 // Watch posts directory
-const postsDir = process.env.THYPRESS_POSTS_DIR || path.join(__dirname, '../posts');
+const postsDir = process.env.thypress_POSTS_DIR || path.join(__dirname, '../posts');
 try {
   watch(postsDir, { recursive: true }, async (event, filename) => {
     if (!filename) return;
 
     try {
-      // Handle markdown changes
-      if (filename.endsWith('.md')) {
+      // Handle markdown/txt changes
+      if (filename.endsWith('.md') || filename.endsWith('.txt')) {
         console.log(`Posts: ${event} - ${filename}`);
 
         if (event === 'rename') {
@@ -177,12 +215,8 @@ try {
             navigation = result.navigation;
             imageReferences = result.imageReferences;
 
-            // Re-optimize images
-            if (!isOptimizingImages) {
-              isOptimizingImages = true;
-              await optimizeToCache(imageReferences, []);
-              isOptimizingImages = false;
-            }
+            // Schedule image optimization
+            scheduleImageOptimization();
           } else {
             const slug = slugMap.get(filename);
             if (slug) {
@@ -195,12 +229,8 @@ try {
         } else if (event === 'change') {
           loadSinglePost(filename);
 
-          // Re-optimize images if references changed
-          if (!isOptimizingImages) {
-            isOptimizingImages = true;
-            await optimizeToCache(imageReferences, []);
-            isOptimizingImages = false;
-          }
+          // Schedule image optimization
+          scheduleImageOptimization();
         }
       }
 
@@ -208,14 +238,8 @@ try {
       if (/\.(jpg|jpeg|png|webp|gif)$/i.test(filename)) {
         console.log(`Images: ${event} - ${filename}`);
 
-        if (!isOptimizingImages) {
-          isOptimizingImages = true;
-          // Reload posts to get updated image references
-          const result = loadAllPosts();
-          imageReferences = result.imageReferences;
-          await optimizeToCache(imageReferences, []);
-          isOptimizingImages = false;
-        }
+        // Schedule image optimization
+        scheduleImageOptimization();
       }
     } catch (error) {
       console.error(`Error processing change: ${error.message}`);
@@ -297,6 +321,10 @@ async function findAvailablePort(startPort) {
 
 // Start server
 const port = await findAvailablePort(START_PORT);
+
+if (port !== START_PORT) {
+  console.log(`ℹ️  Port ${START_PORT} in use, using ${port} instead\n`);
+}
 
 Bun.serve({
   port,
@@ -601,7 +629,7 @@ console.log(`
 `);
 
 // Auto-open browser if flag is set
-const shouldOpenBrowser = process.env.THYPRESS_OPEN_BROWSER === 'true';
+const shouldOpenBrowser = process.env.thypress_OPEN_BROWSER === 'true';
 if (shouldOpenBrowser) {
   console.log('Opening browser...\n');
   openBrowser(serverUrl);

@@ -8,24 +8,23 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
 {{#> _layout
   pageTitle=siteTitle
   pageDescription=siteDescription
-  isArticle=false
-  hasPostsList=true
+  hasEntriesList=true
   showFooterLinks=true
 }}
 
-  <h1>Posts</h1>
+  <h1>Pages</h1>
 
-  <ul class="posts" id="posts-list">
-    {{#each posts}}
+  <ul class="pages" id="pages-list">
+    {{#each entries}}
     <li>
       <h3><a href="{{url}}">{{title}}</a></h3>
       <time>{{date}}</time>
       {{#if description}}
       <p>{{description}}</p>
       {{/if}}
-      {{#if tags}}
+      {{#if entry.tags}}
       <div class="tags">
-        {{#each tags}}<a href="/tag/{{this}}/">{{this}}</a>{{/each}}
+        {{#each entry.tags}}<a href="/tag/{{this}}/">{{this}}</a>{{/each}}
       </div>
       {{/if}}
     </li>

@@ -1,0 +1,72 @@
+<!-- templates/page.hbs -->
+<!-- SPDX-License-Identifier: MPL-2.0
+
+This Source Code Form is subject to the terms of the Mozilla Public
+License, v. 2.0. If a copy of the MPL was not distributed with this
+file, You can obtain one at https://mozilla.org/MPL/2.0/.
+-->
+{{#> _layout
+  pageTitle=title
+  pageDescription=description
+  hasPagesList=false
+  showFooterLinks=false
+}}
+  <div class="pages-info">
+    <time>{{entry.createdAt}}</time>{{#if readingTime}} · {{entry.readingTime}} min read{{/if}}{{#if wordCount}} · {{entry.wordCount}} words{{/if}}
+    {{#unless (eq createdAt updatedAt)}}
+     · Updated: <time>{{entry.updatedAt}}</time>
+    {{/unless}}
+    {{#if entry.tags}}
+    <span class="tags">
+      {{#each entry.tags}}<a href="/tag/{{this}}/">{{this}}</a>{{/each}}
+    </span>
+    {{/if}}
+    {{#if entry.categories}}
+    <span class="categories">
+      {{#each entry.categories}}<a href="/category/{{this}}/">{{this}}</a>{{/each}}
+    </span>
+    {{/if}}
+    {{#if entry.series}}
+    <span class="series">
+      Series: <a href="/series/{{series}}/">{{entry.series}}</a>
+    </span>
+    {{/if}}
+  </div>
+
+  <article>
+    {{{entry.html}}}
+  </article>
+
+  {{#if relatedEntries}}{{#if relatedEntries.length}}
+  <aside>
+    <h2>Related Pages</h2>
+    <ul>
+      {{#each relatedEntries}}
+      <li>
+        <h3><a href="{{url}}">{{title}}</a></h3>
+        <time>{{date}}</time>
+        {{#if description}}
+        <p>{{description}}</p>
+        {{/if}}
+      </li>
+      {{/each}}
+    </ul>
+  </aside>
+  {{/if}}{{/if}}
+
+  {{#if prevEntry}}{{#if nextEntry}}
+  <nav class="page-nav">
+    {{#if prevEntry}}
+      <div>
+        <a href="{{prevEntry.url}}">← {{prevEntry.title}}</a>
+      </div>
+    {{/if}}
+    {{#if nextEntry}}
+      <div>
+        <a href="{{nextEntry.url}}">{{nextEntry.title}} →</a>
+      </div>
+    {{/if}}
+  </nav>
+  {{/if}}{{/if}}
+
+{{/_layout}}

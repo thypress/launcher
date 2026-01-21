@@ -21,15 +21,15 @@
 
   "requires": [
     "navigation",
-    "content",
+    "entries",
     "siteTitle",
     "toc",
     "tags",
     "categories",
     "series",
-    "relatedPosts",
-    "prevPost",
-    "nextPost",
+    "relatedEntries",
+    "prevEntry",
+    "nextEntry",
     "pagination",
     "wordCount",
     "readingTime"
@@ -39,13 +39,13 @@
   "_features": {
     "core": [
       "navigation",
-      "content",
+      "entries",
       "siteTitle",
       "siteDescription",
       "siteUrl",
       "author"
     ],
-    "content_metadata": [
+    "entries_metadata": [
       "title",
       "date",
       "createdAt",
@@ -58,23 +58,23 @@
       "tags",
       "toc",
       "pagination",
-      "posts",
+      "pages",
       "tag",
       "categories",
       "series",
       "category",
-      "relatedPosts",
+      "relatedEntries",
       "wordCount",
       "readingTime",
       "ogImage"
     ],
     "navigation": [
-      "prevPost",
-      "nextPost"
+      "prevEntry",
+      "nextEntry"
     ],
     "context_flags": [
       "isArticle",
-      "hasPostsList",
+      "hasPagesList",
       "showToc"
     ]
   }

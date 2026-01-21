@@ -9,14 +9,13 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
   pageTitlePrefix="Tag: "
   pageTitleValue=tag
   pageDescription=siteDescription
-  isArticle=false
-  hasPostsList=true
+  hasEntriesList=true
   showFooterLinks=false
 }}
   <h1>Tag: {{tag}}</h1>
 
-  <ul class="posts" id="posts-list">
-    {{#each posts}}
+  <ul class="pages" id="pages-list">
+    {{#each entries}}
     <li>
       <h3><a href="{{url}}">{{title}}</a></h3>
       <time>{{date}}</time>

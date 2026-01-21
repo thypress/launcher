@@ -1,9 +1,17 @@
-/* SPDX-License-Identifier: MPL-2.0
- *
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at https://mozilla.org/MPL/2.0/.
- */
+// Copyright (C) 2026 THYPRESS
+
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as
+// published by the Free Software Foundation, either version 3 of the
+// License, or (at your option) any later version.
+
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <https://www.gnu.org>.
 
 import fs from 'fs';
 import path from 'path';
@@ -16,7 +24,12 @@ const outputFile = path.join(__dirname, 'embedded-templates.js');
 /**
  * Recursively scan directory and collect all template files
  */
-function scanTemplates(dir, basePath = '') {
+function scanTemplates(dir, basePath = '', depth) {
+  if (depth > 20) { // Depth check
+    console.warn(`Max depth reached in ${dir}`);
+    return {};
+  }
+
   const templates = {};
 
   if (!fs.existsSync(dir)) {
@@ -35,7 +48,7 @@ function scanTemplates(dir, basePath = '') {
 
     if (entry.isDirectory()) {
       // Recurse into subdirectories
-      Object.assign(templates, scanTemplates(fullPath, relativePath));
+      Object.assign(templates, scanTemplates(fullPath, relativePath, depth + 1));
     } else if (entry.isFile()) {
       // Include relevant file types
       const ext = path.extname(entry.name).toLowerCase();
@@ -58,7 +71,7 @@ function scanTemplates(dir, basePath = '') {
 const templates = scanTemplates(templatesDir);
 
 // Validate critical files exist
-const criticalFiles = ['index.html', 'post.html', 'style.css'];
+const criticalFiles = ['index.html', 'entry.html', 'style.css'];
 const missing = criticalFiles.filter(file => !templates[file]);
 
 if (missing.length > 0) {

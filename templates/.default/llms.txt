@@ -8,9 +8,9 @@
 
 > {{siteDescription}}
 
-## Recent Posts
-{{#each recentPosts}}
-- [{{title}}]({{../siteUrl}}/post/{{slug}}/)
+## Recent Pages
+{{#each recentPages}}
+- [{{title}}]({{../siteUrl}}/page/{{slug}}/)
 {{/each}}
 
 ## Tags

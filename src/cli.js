@@ -1,15 +1,25 @@
-/* SPDX-License-Identifier: MPL-2.0
- *
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at https://mozilla.org/MPL/2.0/.
- */
+// Copyright (C) 2026 THYPRESS
+
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as
+// published by the Free Software Foundation, either version 3 of the
+// License, or (at your option) any later version.
+
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <https://www.gnu.org>.
 
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { ZipReader, BlobReader, BlobWriter } from '@zip.js/zip.js';
 import { success, error as errorMsg, warning, info, dim, bright } from './utils/colors.js';
-import { detectContentStructure, loadEmbeddedTemplates } from './renderer.js';
+import { detectContentStructure } from './content-processor.js'
+import { loadEmbeddedTemplates } from './theme-system.js';
 import { REDIRECT_STATUS_CODES, DEFAULT_STATUS_CODE, parseRedirectRules } from './build.js';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
@@ -28,6 +38,8 @@ function parseArgs() {
   let contentDir = null;
   let skipDirs = null;
   let redirectAction = 'validate';
+  let themeArchivePath = null;
+  let validateTarget = null;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -67,6 +79,16 @@ function parseArgs() {
       continue;
     }
 
+    if (arg === 'validate' || arg === 'v') {
+      command = 'validate';
+      // Next arg is the target
+      if (i + 1 < args.length && !args[i + 1].startsWith('-')) {
+        validateTarget = args[i + 1];
+        i++;
+      }
+      continue;
+    }
+
     if (arg === '--serve') {
       serveAfterBuild = true;
       continue;
@@ -79,7 +101,7 @@ function parseArgs() {
 
     // FIX 13: Argument validation
     if (arg === '--dir' || arg === '-d') {
-      if (i + 1 >= args.length) {
+      if (i + 1 >= args.length || args[i + 1].startsWith('-')) {
         console.error(errorMsg('--dir requires a path argument'));
         console.log(dim('Example: thypress --dir ./my-blog'));
         process.exit(1);
@@ -121,6 +143,13 @@ function parseArgs() {
       targetDir = arg;
       continue;
     }
+
+    // Check for .zip files (theme installation)
+    if (arg.endsWith('.zip')) {
+      command = 'install-theme';
+      themeArchivePath = path.resolve(arg);
+      continue;
+    }
   }
 
   if (targetDir) {
@@ -129,10 +158,10 @@ function parseArgs() {
     targetDir = process.cwd();
   }
 
-  return { command, targetDir, openBrowser, serveAfterBuild, contentDir, skipDirs, redirectAction };
+  return { command, targetDir, openBrowser, serveAfterBuild, contentDir, skipDirs, redirectAction, themeArchivePath, validateTarget };
 }
 
-const { command, targetDir, openBrowser, serveAfterBuild, contentDir, skipDirs, redirectAction } = parseArgs();
+const { command, targetDir, openBrowser, serveAfterBuild, contentDir, skipDirs, redirectAction, themeArchivePath, validateTarget } = parseArgs();
 
 async function ensureDefaults() {
   console.log(info(`Working directory: ${targetDir}\n`));
@@ -143,23 +172,23 @@ async function ensureDefaults() {
   });
 
   if (shouldInit) {
-    const postsDir = path.join(contentRoot, 'posts');
-    fs.mkdirSync(postsDir, { recursive: true });
+    const pagesDir = path.join(contentRoot, 'pages');
+    fs.mkdirSync(pagesDir, { recursive: true });
     console.log(success(`Created ${contentRoot}`));
 
-    const examplePost = path.join(postsDir, '2024-01-01-welcome.md');
-    fs.writeFileSync(examplePost, `---
+    const examplePage = path.join(pagesDir, '2024-01-01-welcome.md');
+    fs.writeFileSync(examplePage, `---
 title: Welcome to THYPRESS!
 createdAt: 2024-01-01
 updatedAt: 2024-01-15
 tags: [blogging, markdown, documentation]
 categories: [tutorials]
-description: Your first post with THYPRESS - learn about features and get started
+description: Your first page with THYPRESS - learn about features and get started
 ---
 
 # Welcome to THYPRESS!
 
-This is your first post. Create more \`.md\` files in \`content/posts/\`.
+This is your first page. Create more \`.md\` files in \`content/pages/\`.
 
 ## Getting Started
 
@@ -167,11 +196,11 @@ THYPRESS is a **static site generator** with a built-in HTTP server. It's design
 
 ### Writing Content
 
-Add YAML front matter to your posts:
+Add YAML front matter to your pages:
 
 \`\`\`yaml
 ---
-title: My Post Title
+title: My Page Title
 createdAt: 2024-01-01
 updatedAt: 2024-01-15
 tags: [tag1, tag2]
@@ -200,7 +229,7 @@ Keep work-in-progress content hidden with these methods:
 1. **\`drafts/\` folder** - Place anywhere in \`content/\`:
    \`\`\`
    content/
-   ├── posts/
+   ├── pages/
    │   ├── published.md
    │   └── drafts/         ← Everything here is ignored
    │       └── wip.md
@@ -212,7 +241,7 @@ Keep work-in-progress content hidden with these methods:
    \`\`\`yaml
    ---
    title: Work in Progress
-   draft: true  # This post won't be published
+   draft: true  # This page won't be published
    ---
    \`\`\`
 
@@ -234,7 +263,7 @@ Reusable template fragments are detected by:
        ├── partials/       ← Put partials here
        │   ├── header.html
        │   └── footer.html
-       └── post.html
+       └── page.html
    \`\`\`
 
 2. **Underscore prefix** (Handlebars/Sass convention):
@@ -242,7 +271,7 @@ Reusable template fragments are detected by:
    templates/
    └── my-press/
        ├── _header.html    ← Also a partial
-       └── post.html
+       └── page.html
    \`\`\`
 
 3. **\`partial: true\` in front matter** (template files):
@@ -341,7 +370,7 @@ Every page includes:
 
 \`\`\`
 content/
-├── posts/              → Blog posts
+├── pages/              → Blog pages
 │   ├── published.md
 │   └── drafts/         → Drafts (ignored)
 │       └── wip.md
@@ -355,7 +384,7 @@ content/
 
 Your folder structure becomes your URL structure:
 
-- \`content/posts/hello.md\` → \`/posts/hello/\`
+- \`content/pages/hello.md\` → \`/pages/hello/\`
 - \`content/docs/api.md\` → \`/docs/api/\`
 - \`content/about.md\` → \`/about/\`
 
@@ -367,7 +396,7 @@ THYPRESS supports multiple ways to organize content:
 
 - **Tags**: Lightweight categorization
 - **Categories**: Hierarchical organization
-- **Series**: Group related posts
+- **Series**: Group related pages
 
 \`\`\`yaml
 ---
@@ -389,7 +418,7 @@ Create a \`redirects.json\` file to handle URL migrations:
 
 \`\`\`json
 {
-  "/old-post/": "/new-post/",
+  "/old-page/": "/new-page/",
   "/temp-promo/": {
     "to": "/sale/",
     "statusCode": 302
@@ -443,8 +472,8 @@ Edit \`config.json\` to customize your site:
 
 ## Next Steps
 
-1. **Edit this file**: \`content/posts/2024-01-01-welcome.md\`
-2. **Create new posts**: Add \`.md\` files to \`content/posts/\`
+1. **Edit this file**: \`content/pages/2024-01-01-welcome.md\`
+2. **Create new pages**: Add \`.md\` files to \`content/pages/\`
 3. **Customize theme**: Edit templates in \`templates/my-press/\`
 4. **Configure site**: Update \`config.json\`
 5. **Set up redirects**: Create \`redirects.json\` if migrating URLs
@@ -455,9 +484,9 @@ Edit \`config.json\` to customize your site:
 - **Issues**: Report bugs or request features
 - **Discussions**: Ask questions and share your site
 
-Happy blogging! ✨
+Happy blogging!
 `);
-    console.log(success(`Created example post\n`));
+    console.log(success(`Created example page\n`));
   }
 
   const templatesDir = path.join(targetDir, 'templates');
@@ -470,7 +499,7 @@ Happy blogging! ✨
 
     const templates = [
       { name: 'index.html', content: EMBEDDED_TEMPLATES['index.html'] },
-      { name: 'post.html', content: EMBEDDED_TEMPLATES['post.html'] },
+      { name: 'page.html', content: EMBEDDED_TEMPLATES['page.html'] },
       { name: 'tag.html', content: EMBEDDED_TEMPLATES['tag.html'] },
       { name: 'style.css', content: EMBEDDED_TEMPLATES['style.css'] },
       { name: 'robots.txt', content: EMBEDDED_TEMPLATES['robots.txt'] },
@@ -503,7 +532,7 @@ Happy blogging! ✨
 
     const templates = [
       { name: 'index.html', content: EMBEDDED_TEMPLATES['index.html'] },
-      { name: 'post.html', content: EMBEDDED_TEMPLATES['post.html'] },
+      { name: 'page.html', content: EMBEDDED_TEMPLATES['page.html'] },
       { name: 'tag.html', content: EMBEDDED_TEMPLATES['tag.html'] },
       { name: 'style.css', content: EMBEDDED_TEMPLATES['style.css'] },
       { name: '_sidebar-nav.html', content: EMBEDDED_TEMPLATES['_sidebar-nav.html'] },
@@ -720,7 +749,7 @@ async function handleRedirectsCommand(action = 'validate') {
     console.log(warning('No redirects.json file found'));
     console.log(info('Create one to get started:'));
     console.log(dim('  {'));
-    console.log(dim('    "/old-post/": "/new-post/"'));
+    console.log(dim('    "/old-page/": "/new-page/"'));
     console.log(dim('  }'));
     console.log('');
     console.log(info('Or use advanced format with status codes:'));
@@ -952,7 +981,7 @@ async function testRedirects(redirectsData) {
   }
 
   console.log(info('Enter URLs to test (press Ctrl+C to exit):'));
-  console.log(dim('Example: /old-post/ or /blog/hello-world/\n'));
+  console.log(dim('Example: /old-page/ or /blog/hello-world/\n'));
 
   const readline = require('readline');
   const rl = readline.createInterface({
@@ -1080,6 +1109,301 @@ async function checkRedirects(redirectsData) {
   console.log(bright('All checks passed! Ready to build.'));
 }
 
+/**
+ * Install theme from ZIP archive
+ */
+async function installThemeFromArchive(archivePath, targetDir) {
+  console.log(bright('\nInstalling theme from archive...\n'));
+
+  const tempDir = path.join(os.tmpdir(), `thypress-theme-${Date.now()}`);
+  fs.mkdirSync(tempDir, { recursive: true });
+
+  try {
+    // Extract archive
+    console.log(info('Extracting archive...'));
+
+    const zipFile = await Bun.file(archivePath).arrayBuffer();
+    const zipReader = new ZipReader(new BlobReader(new Blob([zipFile])));
+    const entries = await zipReader.getEntries();
+
+    for (const entry of entries) {
+      if (entry.directory) continue;
+      const data = await entry.getData(new BlobWriter());
+      const outputPath = path.join(tempDir, entry.filename);
+      fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+      fs.writeFileSync(outputPath, Buffer.from(await data.arrayBuffer()));
+    }
+
+    await zipReader.close();
+
+    // Detect theme directory
+    const extracted = fs.readdirSync(tempDir);
+    let themeDir = tempDir;
+
+    if (extracted.length === 1 && fs.statSync(path.join(tempDir, extracted[0])).isDirectory()) {
+      themeDir = path.join(tempDir, extracted[0]);
+    }
+
+    // Load metadata
+    let themeName = path.basename(themeDir);
+    let themeMetadata = {};
+
+    const themeJsonPath = path.join(themeDir, 'theme.json');
+    const indexHtmlPath = path.join(themeDir, 'index.html');
+
+    if (fs.existsSync(themeJsonPath)) {
+      themeMetadata = JSON.parse(fs.readFileSync(themeJsonPath, 'utf-8'));
+      themeName = themeMetadata.name || themeName;
+      console.log(success(`Found theme: ${themeName} v${themeMetadata.version || 'unknown'}`));
+    } else if (fs.existsSync(indexHtmlPath)) {
+      const { data } = matter(fs.readFileSync(indexHtmlPath, 'utf-8'));
+      if (data.name) {
+        themeMetadata = data;
+        themeName = data.name;
+        console.log(success(`Found theme: ${themeName} v${data.version || 'unknown'}`));
+      }
+    }
+
+    // Validate
+    console.log(info('Validating theme structure...'));
+
+    if (!fs.existsSync(path.join(themeDir, 'index.html'))) {
+      console.error(errorMsg('\n✗ Invalid theme: Missing required file: index.html'));
+      console.log(dim('  Themes must include at minimum: index.html'));
+      process.exit(1);
+    }
+
+    console.log(success('✓ Required files present'));
+
+    const { validateTheme } = await import('./theme-system.js');
+    const validation = validateTheme(themeDir, new Map(), themeName, themeMetadata);
+
+    if (!validation.valid) {
+      console.log('');
+      console.error(errorMsg(`✗ Theme validation failed:`));
+      validation.errors.forEach(err => {
+        console.log(dim(`  • ${err}`));
+      });
+      console.log('');
+      process.exit(1);
+    }
+
+    if (validation.warnings.length > 0) {
+      console.log(warning('⚠ Theme has warnings:'));
+      validation.warnings.forEach(warn => {
+        console.log(dim(`  • ${warn}`));
+      });
+      console.log('');
+    }
+
+    console.log(success('✓ Theme validation passed'));
+
+    // Check if theme exists
+    const themeSlug = slugify(themeName);
+    const installPath = path.join(targetDir, 'templates', themeSlug);
+
+    const config = getSiteConfig();
+
+    if (fs.existsSync(installPath)) {
+      if (!config.overwriteThemes) {
+        console.log('');
+        console.error(errorMsg(`Theme '${themeSlug}' already exists.`));
+        console.log(info('To overwrite themes, add to config.json:'));
+        console.log(dim('  "overwriteThemes": true'));
+        console.log('');
+        process.exit(1);
+      }
+      console.log(warning('Overwriting existing theme...'));
+      fs.rmSync(installPath, { recursive: true, force: true });
+    }
+
+    // Install
+    console.log(info(`\nInstalling to: templates/${themeSlug}/`));
+    fs.mkdirSync(path.dirname(installPath), { recursive: true });
+    fs.cpSync(themeDir, installPath, { recursive: true });
+
+    console.log(success(`✓ Theme installed successfully`));
+
+    // Auto-activate if configured
+    if (config.autoActivateTheme) {
+      console.log(info('\nActivating theme...'));
+      setActiveTheme(themeSlug);
+      console.log(success(`✓ Theme '${themeSlug}' activated`));
+    } else {
+      console.log('');
+      console.log(info('To activate this theme, add to config.json:'));
+      console.log(dim(`  "theme": "${themeSlug}"`));
+      console.log('');
+      console.log(info('Or set auto-activation:'));
+      console.log(dim('  "autoActivateTheme": true'));
+    }
+
+    console.log('');
+    console.log(bright('✓ Theme installation complete!'));
+    console.log(dim(`  Run 'thypress serve' to use your theme\n`));
+
+  } catch (error) {
+    console.error(errorMsg(`\nTheme installation failed: ${error.message}`));
+    console.log(dim('  Make sure the archive contains a valid THYPRESS theme'));
+    process.exit(1);
+  } finally {
+    if (fs.existsSync(tempDir)) {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  }
+}
+
+/**
+ * Run validation commands
+ */
+async function runValidation(target, workingDir) {
+  process.chdir(workingDir);
+
+  if (!target) {
+    console.log(bright('Running full validation...\n'));
+    await validateThemeCommand();
+    await validateRedirectsCommand();
+    await validateContentCommand();
+    console.log(bright('\n✓ All validations passed'));
+    return;
+  }
+
+  switch (target) {
+    case 'theme':
+      await validateThemeCommand();
+      break;
+    case 'redirects':
+      await validateRedirectsCommand();
+      break;
+    case 'content':
+      await validateContentCommand();
+      break;
+    default:
+      console.error(errorMsg(`Unknown validation target: ${target}`));
+      console.log(info('Available targets: theme, redirects, content'));
+      process.exit(1);
+  }
+}
+
+async function validateThemeCommand() {
+  console.log(bright('Validating theme...\n'));
+
+  const siteConfig = getSiteConfig();
+  const { loadTheme } = await import('./theme-system.js');
+  const themeResult = await loadTheme(siteConfig.theme, siteConfig);
+
+  const { templatesCache, activeTheme, validation } = themeResult;
+
+  if (activeTheme === '.default') {
+    console.log(success('✓ Using embedded default theme (always valid)'));
+    return;
+  }
+
+  if (!validation.valid) {
+    console.log(errorMsg(`✗ Theme '${activeTheme}' validation failed:\n`));
+    validation.errors.forEach(err => {
+      console.log(dim(`  • ${err}`));
+    });
+    console.log('');
+    process.exit(1);
+  }
+
+  console.log(success(`✓ Theme '${activeTheme}' is valid`));
+
+  if (validation.warnings.length > 0) {
+    console.log(warning('\n⚠ Warnings:'));
+    validation.warnings.forEach(warn => {
+      console.log(dim(`  • ${warn}`));
+    });
+  }
+
+  console.log('');
+  console.log(info('Theme Details:'));
+  console.log(dim(`  Templates: ${templatesCache.size}`));
+  console.log(dim(`  Location: templates/${activeTheme}/`));
+}
+
+async function validateRedirectsCommand() {
+  console.log(bright('Validating redirects...\n'));
+
+  const redirectsPath = path.join(process.cwd(), 'redirects.json');
+
+  if (!fs.existsSync(redirectsPath)) {
+    console.log(info('No redirects.json found (optional)'));
+    return;
+  }
+
+  const redirectsData = JSON.parse(fs.readFileSync(redirectsPath, 'utf-8'));
+  const { rules, errors } = parseRedirectRules(redirectsData);
+
+  if (errors.length > 0) {
+    console.log(errorMsg('✗ Validation errors:\n'));
+    errors.forEach(err => {
+      console.log(dim(`  • ${err}`));
+    });
+    process.exit(1);
+  }
+
+  console.log(success(`✓ All ${rules.length} redirect rules valid`));
+
+  const statusBreakdown = rules.reduce((acc, rule) => {
+    acc[rule.statusCode] = (acc[rule.statusCode] || 0) + 1;
+    return acc;
+  }, {});
+
+  console.log(dim(`  Status codes: ${Object.entries(statusBreakdown).map(([code, count]) => `${count}×${code}`).join(', ')}`));
+}
+
+async function validateContentCommand() {
+  console.log(bright('Validating content...\n'));
+
+  const { loadAllContent, getAllTags } = await import('./renderer.js');
+  const { contentCache, brokenImages } = loadAllContent();
+
+  console.log(success(`✓ Loaded ${contentCache.size} entries`));
+
+  if (brokenImages.length > 0) {
+    console.log(warning(`\n⚠ Broken image references (${brokenImages.length}):`));
+    brokenImages.forEach(broken => {
+      console.log(dim(`  • ${broken.page} → ${broken.src} (file not found)`));
+    });
+    console.log('');
+  }
+
+  // Check for duplicate URLs
+  const urlMap = new Map();
+  const duplicates = [];
+
+  for (const [slug, entry] of contentCache) {
+    if (urlMap.has(entry.url)) {
+      duplicates.push({
+        url: entry.url,
+        files: [urlMap.get(entry.url), entry.filename]
+      });
+    } else {
+      urlMap.set(entry.url, entry.filename);
+    }
+  }
+
+  if (duplicates.length > 0) {
+    console.log(errorMsg(`✗ Duplicate URLs detected (${duplicates.length}):\n`));
+    duplicates.forEach(dup => {
+      console.log(dim(`  • ${dup.url}`));
+      console.log(dim(`    - ${dup.files[0]}`));
+      console.log(dim(`    - ${dup.files[1]}`));
+    });
+    console.log('');
+    process.exit(1);
+  }
+
+  console.log('');
+  console.log(info('Content Statistics:'));
+  console.log(dim(`  Total entries: ${contentCache.size}`));
+
+  const tags = getAllTags(contentCache);
+  console.log(dim(`  Tags: ${tags.length}`));
+}
+
 function help() {
   console.log(`
 ${bright('THYPRESS')} v${VERSION} - Simple markdown blog/docs engine
@@ -1131,7 +1455,7 @@ ${bright('Redirect Examples:')}
 
 ${bright('Structure:')}
   content/              ← Your content (markdown/text/html)
-    posts/              ← Blog posts
+    pages/              ← Blog pages
     docs/               ← Documentation
     guides/             ← Tutorial guides
     about.md            ← Static pages
@@ -1144,7 +1468,7 @@ ${bright('Structure:')}
 ${bright('Redirects Configuration (redirects.json):')}
   Simple format (301 by default):
   {
-    "/old-post/": "/new-post/"
+    "/old-page/": "/new-page/"
   }
 
   Advanced format (custom status code):
@@ -1157,14 +1481,14 @@ ${bright('Redirects Configuration (redirects.json):')}
 
   Pattern matching (dynamic parameters):
   {
-    "/blog/:slug/": "/posts/:slug/",
-    "/:year/:month/:slug/": "/posts/:slug/"
+    "/blog/:slug/": "/pages/:slug/",
+    "/:year/:month/:slug/": "/pages/:slug/"
   }
 
   Supported status codes:
   - 301: Permanent (SEO-friendly, default)
   - 302: Temporary (promotions, A/B tests)
-  - 303: Post-form redirect (prevents resubmit)
+  - 303: Page-form redirect (prevents resubmit)
   - 307: Temporary + preserves POST data
   - 308: Permanent + preserves POST data
 
@@ -1196,7 +1520,7 @@ ${bright('Conventions:')}
 
 ${bright('Features:')}
   • Live reload with WebSocket
-  • Related posts (tag-based)
+  • Related pages (tag-based)
   • RSS per tag/category/series
   • URL redirects with 5 status codes
   • Dual-build strategy (smart + dumb hosts)
@@ -1226,6 +1550,12 @@ switch (command) {
     break;
   case 'clean':
     clean();
+    break;
+  case 'install-theme':
+    await installThemeFromArchive(themeArchivePath, targetDir);
+    break;
+  case 'validate':
+    await runValidation(validateTarget, targetDir);
     break;
   case 'redirects':
     await handleRedirectsCommand(redirectAction);

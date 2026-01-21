@@ -1,0 +1,400 @@
+---
+name: Hey
+version: 1.0.0
+description: Single file, HTML/CSS pure, lean yet complete editorial theme
+author: THYPRESS
+singleFile: true
+requires:
+  - navigation
+  - entry
+  - pagination
+---
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<title>
+  {{#if entry}}
+    {{title}} - {{siteTitle}}
+  {{else if tag}}
+    Tag: {{tag}} - {{siteTitle}}
+  {{else if category}}
+    Category: {{category}} - {{siteTitle}}
+  {{else if entry.series}}
+    Series: {{entry.series}} - {{siteTitle}}
+  {{else}}
+    {{siteTitle}}
+  {{/if}}
+</title>
+
+<meta name="description" content="{{#if description}}{{description}}{{else}}{{siteDescription}}{{/if}}">
+
+<style>
+/* =========================
+   TOKENS
+   ========================= */
+:root {
+  --bg: #ffffff;
+  --fg: #0e0e0e;
+  --muted: #6b6b6b;
+  --border: #e5e5e5;
+
+  --maxw: 760px;
+  --pad: 1.25rem;
+  --lh: 1.6;
+  --radius: 10px;
+}
+
+/* System dark (base) */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d0f12;
+    --fg: #f2f2f2;
+    --muted: #9a9a9a;
+    --border: #1f2228;
+  }
+}
+
+/* User override (wins) */
+html:has(input#theme:checked) {
+  --bg: #0d0f12;
+  --fg: #f2f2f2;
+  --muted: #9a9a9a;
+  --border: #1f2228;
+}
+
+/* =========================
+   BASE
+   ========================= */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    Roboto, Helvetica, Arial, sans-serif;
+  line-height: var(--lh);
+}
+
+/* =========================
+   TOGGLE
+   ========================= */
+input#theme {
+  position: absolute;
+  opacity: 0;
+}
+
+label[for="theme"] {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  padding: 0.4rem 0.7rem;
+  font-size: 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--fg);
+  cursor: pointer;
+  user-select: none;
+}
+
+/* =========================
+   LAYOUT
+   ========================= */
+main {
+  width: 100%;
+}
+
+section {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+}
+
+section > div {
+  width: 100%;
+  max-width: var(--maxw);
+  margin: 0 auto;
+  padding: var(--pad);
+}
+
+@media (min-width: 1024px) {
+  section > div {
+    padding: calc(var(--pad) * 1.5);
+  }
+}
+
+/* =========================
+   LANDING / LISTING
+   ========================= */
+figure {
+  width: 160px;
+  aspect-ratio: 1 / 1;
+  margin: 0 0 1rem 0;
+  background: linear-gradient(135deg, #bbb, #999);
+  border-radius: var(--radius);
+}
+
+@media (min-width: 640px) {
+  figure {
+    width: 180px;
+  }
+}
+
+h1 {
+  font-size: clamp(2rem, 4vw, 2.6rem);
+  margin: 0 0 0.5rem 0;
+}
+
+p {
+  margin: 0.5rem 0;
+}
+
+p[aria-description] {
+  color: var(--muted);
+  max-width: 40ch;
+}
+
+ul {
+  list-style: none;
+  padding: 0;
+  margin: 1.25rem 0 0 0;
+  border-top: 1px solid var(--border);
+}
+
+li {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.75rem;
+  padding: 0.6rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+li a {
+  color: var(--fg);
+  text-decoration: none;
+}
+
+li a:hover {
+  text-decoration: underline;
+}
+
+time {
+  font-size: 0.85rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+/* =========================
+   ARTICLE
+   ========================= */
+article header {
+  margin-bottom: 1.5rem;
+}
+
+h2 {
+  font-size: clamp(1.4rem, 3vw, 1.8rem);
+  margin: 0 0 0.25rem 0;
+}
+
+header p {
+  color: var(--muted);
+}
+
+small {
+  color: var(--muted);
+  display: block;
+}
+
+article p {
+  margin: 1rem 0;
+}
+
+article ul,
+article ol {
+  margin: 1rem 0 1rem 1.25rem;
+}
+
+article li {
+  border: none;
+  padding: 0.25rem 0;
+}
+
+img {
+  width: 100%;
+  display: block;
+  margin: 1.25rem 0;
+  border-radius: var(--radius);
+  background: #bbb;
+}
+
+/* Post metadata */
+article > footer {
+  margin-top: 2rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+article > footer a {
+  color: var(--fg);
+  text-decoration: none;
+}
+
+article > footer a:hover {
+  text-decoration: underline;
+}
+
+/* =========================
+   NAVIGATION
+   ========================= */
+nav {
+  margin-top: 2.5rem;
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+nav a {
+  font-size: 0.85rem;
+  color: var(--fg);
+  text-decoration: none;
+}
+
+nav a:hover {
+  text-decoration: underline;
+}
+
+/* =========================
+   FOOTER
+   ========================= */
+body > footer {
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--muted);
+  padding: 2rem 1rem;
+}
+
+body > footer a {
+  color: var(--fg);
+  text-decoration: none;
+}
+
+body > footer a:hover {
+  text-decoration: underline;
+}
+</style>
+</head>
+
+<body>
+<input type="checkbox" id="theme">
+<label for="theme">light / dark</label>
+
+<main>
+
+{{#if entry}}
+<section>
+  <div>
+    <article>
+      <header>
+        <h2>{{title}}</h2>
+        {{#if description}}<p>{{description}}</p>{{/if}}
+        <small>
+          {{#if entry.author}}By {{entry.author}} · {{/if}}
+          {{entry.createdAt}}
+          {{#if entry.updatedAt}} · Updated {{entry.updatedAt}}{{/if}}
+          {{#if entry.readingTime}} · {{entry.readingTime}} min read{{/if}}
+          {{#if entry.wordCount}} · {{entry.wordCount}} words{{/if}}
+        </small>
+      </header>
+
+      {{{entry.html}}}
+
+      {{#if entry.tags}}
+      <footer>
+        Tags:
+        {{#each entry.tags}}<a href="/tag/{{this}}/">{{this}}</a>{{#unless @last}}, {{/unless}}{{/each}}
+      </footer>
+      {{/if}}
+
+      {{#if entry.categories}}
+      <footer>
+        Categories:
+        {{#each entry.categories}}<a href="/category/{{this}}/">{{this}}</a>{{#unless @last}}, {{/unless}}{{/each}}
+      </footer>
+      {{/if}}
+
+      {{#if entry.series}}
+      <footer>
+        Series: <a href="/series/{{entry.series}}/">{{entry.series}}</a>
+      </footer>
+      {{/if}}
+    </article>
+
+    {{#if prevEntry}}{{#if nextEntry}}
+    <nav>
+      {{#if prevEntry}}
+        <a href="{{prevEntry.url}}">← {{prevEntry.title}}</a>
+      {{/if}}
+      {{#if nextEntry}}
+        <a href="{{nextEntry.url}}">{{nextEntry.title}} →</a>
+      {{/if}}
+    </nav>
+    {{/if}}{{/if}}
+  </div>
+</section>
+
+{{else}}
+<section>
+  <div>
+    <figure></figure>
+
+    <h1>{{siteTitle}}</h1>
+
+    <p aria-description>{{siteDescription}}</p>
+
+    {{#if tag}}<p aria-description>Tag: {{tag}}</p>{{/if}}
+    {{#if category}}<p aria-description>Category: {{category}}</p>{{/if}}
+    {{#if entry.series}}<p aria-description>Series: {{entry.series}}</p>{{/if}}
+
+    <ul>
+      {{#each entries}}
+      <li>
+        <time>{{date}}</time>
+        <span><a href="{{url}}">{{title}}</a></span>
+      </li>
+      {{/each}}
+    </ul>
+
+    {{#if pagination}}
+    <nav>
+      {{#if pagination.hasPrev}}
+        <a href="{{#if (eq pagination.prevPage 1)}}/{{else}}/page/{{pagination.prevPage}}/{{/if}}">← Previous</a>
+      {{/if}}
+      {{#if pagination.hasNext}}
+        <a href="/page/{{pagination.nextPage}}/">Next →</a>
+      {{/if}}
+    </nav>
+    {{/if}}
+  </div>
+</section>
+{{/if}}
+
+</main>
+
+<footer>
+  <p>&copy; {{siteTitle}} • <a href="/rss.xml">RSS</a> • <a href="/sitemap.xml">Sitemap</a></p>
+</footer>
+</body>
+</html>

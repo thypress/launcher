@@ -1,9 +1,17 @@
-/* SPDX-License-Identifier: MPL-2.0
- *
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at https://mozilla.org/MPL/2.0/.
- */
+// Copyright (C) 2026 THYPRESS
+
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as
+// published by the Free Software Foundation, either version 3 of the
+// License, or (at your option) any later version.
+
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <https://www.gnu.org>.
 
 export const colors = {
   reset: '\x1b[0m',
@@ -11,7 +19,7 @@ export const colors = {
   dim: '\x1b[2m',
   red: '\x1b[31m',
   green: '\x1b[32m',
-  yellow: '\x1b[33m',
+  // yellow: '\x1b[33m', // This color is not properly working for "Warning"
   blue: '\x1b[34m',
   cyan: '\x1b[36m',
   gray: '\x1b[90m',
@@ -42,7 +50,7 @@ const paint = (colorCode, text) => supportsColor() ? `${colorCode}${text}${color
 // Standardized to 1 space after icon for alignment
 export const success = (msg) => `${paint(colors.green, '[done]')} ${msg}`;
 export const error = (msg) => `${paint(colors.red, '[fail]')} ${msg}`;
-export const warning = (msg) => `${paint(colors.yellow, '[warn]')} ${msg}`;
+export const warning = (msg) => `${paint(colors.bright, '[warn]')} ${msg}`;
 export const info = (msg) => `${paint(colors.blue, '[info]')} ${msg}`;
 
 export const dim = (msg) => paint(colors.dim, msg);

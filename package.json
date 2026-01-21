@@ -1,6 +1,6 @@
 {
   "name": "thypress",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Dead simple markdown blog/docs engine",
   "type": "module",
   "bin": {
@@ -15,9 +15,10 @@
     "dev": "bun src/cli.js serve",
     "build:static": "bun src/cli.js build",
     "prebuild:exe": "bun src/embed-templates.js",
-    "build:exe": "bun build ./src/cli.js --compile --windows-icon=./icon.ico --windows-publisher=\"THYPRESS™\" --windows-title=\"THYPRESS BINDER\" --windows-description=\"Dead simple markdown blog/docs engine\" --windows-version=\"0.1.0\" --windows-copyright=\"© 2026 THYPRESS™\" --outfile=\"THYPRESS BINDER\""
+    "build:exe": "bun build ./src/cli.js --compile --windows-icon=./icon.ico --windows-publisher=\"THYPRESS™\" --windows-title=\"THYPRESS BINDER\" --windows-description=\"Dead simple markdown blog/docs engine\" --windows-version=\"0.3.0\" --windows-copyright=\"© 2026 THYPRESS™\" --outfile=\"THYPRESS BINDER\""
   },
   "dependencies": {
+    "@zip.js/zip.js": "^2.3.18",
     "feed": "^4.2.2",
     "gray-matter": "^4.0.3",
     "handlebars": "^4.7.8",

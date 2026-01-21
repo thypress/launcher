@@ -8,53 +8,129 @@
 
 /* ===== Minimal Tokens ===== */
 :root {
+  --font-sans:
+    Arial,
+    "Helvetica Neue",
+    "SF Pro Text",
+    "Segoe UI",
+    Roboto,
+    "Noto Sans",
+    "Liberation Sans",
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    sans-serif;
+
+  --font-serif:
+    Georgia,
+    "New York",
+    "SF Pro Serif",
+    "Iowan Old Style",
+    "Charter",
+    "Palatino Linotype",
+    Palatino,
+    "Book Antiqua",
+    "Times New Roman",
+    Times,
+    ui-serif,
+    serif;
+
   --sidebar-w: 250px;
   --sidebar-w-max: 300px;
   --border: none;
 }
 
-/* Dark mode - only for theme toggle functionality */
+/* base palette — pure grayscale */
+:root {
+  --bg-light: #ffffff;
+  --bg-dark:  #0d0d0d;
+
+  --fg-light: #1a1a1a;
+  --fg-dark:  #e6e6e6;
+
+  /* accents — neutral emphasis (no color) */
+  --accent-light:   #2e2e2e;
+  --accent-dark:    #d6d6d6;
+
+  --accent-2-light: #4a4a4a;
+  --accent-2-dark:  #b0b0b0;
+
+  /* muted text tiers */
+  --muted-light:    #6b6b6b;
+  --muted-2-light:  #9a9a9a;
+
+  --muted-dark:     #9e9e9e;
+  --muted-2-dark:   #6f6f6f;
+}
+
+/* Dark mode — only for theme toggle functionality */
 @media (prefers-color-scheme: dark) {
   :root { color-scheme: dark; }
 }
 
-html[data-theme="light"] { color-scheme: light; }
-html[data-theme="dark"] { color-scheme: dark; }
+html[data-theme="light"] {
+  color-scheme: light;
+  --bg: var(--bg-light);
+  --fg: var(--fg-light);
+  --accent: var(--accent-light);
+  --accent-2: var(--accent-2-light);
+  --muted: var(--muted-light);
+  --muted-2: var(--muted-2-light);
+}
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: var(--bg-dark);
+  --fg: var(--fg-dark);
+  --accent: var(--accent-dark);
+  --accent-2: var(--accent-2-dark);
+  --muted: var(--muted-dark);
+  --muted-2: var(--muted-2-dark);
+}
 
 /* ===== Baseline ===== */
 *,
 *::before,
-*::after { box-sizing: border-box; }
+*::after {
+  box-sizing: border-box;
+}
+
+/*main, input, button, a { transition: background-color 0.5s ease, color 0.5s ease !important; }*/
 
 html, button {
-  font-family: Charter, "Bitstream Charter", "Sitka Text", Cambria, Georgia, serif;
+  font-family: monospace, Charter, "Bitstream Charter", "Sitka Text", Cambria, Georgia, serif;
   line-height: 1.6;
-  font-size: 112.5%;
+  /*font-size: 112.5%;*/
 }
 
 body {
   margin: 0;
   display: flex;
 
-  background: Canvas;
-  color: CanvasText;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+h1, h2, h3, h4, h5, h6,
+a,
+kbd,
+.search-dialog-top strong {
+    font-family: monospace, "Arimo", Arial, sans-serif;
+    font-optical-sizing: auto;
+    font-style: normal;
 }
 
 h1, h2, h3, h4, h5, h6 {
   line-height: 1.2;
   scroll-margin-top: 2rem;
-  font-family: "Arimo", Arial, sans-serif;
-  font-optical-sizing: auto;
-  font-style: normal;
 }
 
 a {
-    font-family: "Arimo", Arial, sans-serif;
-    font-optical-sizing: auto;
-    font-style: normal;
-    text-decoration: none;
+  color: var(--accent);
+  text-decoration: none;
 }
-
+a:hover { color: var(--accent-2); }
 /* ===== Layout ===== */
 main {
   flex: 1;
@@ -62,7 +138,7 @@ main {
   min-width: 0;
 }
 
-@media (max-width: 1024px) {
+@media (max-width: 768px) {
   body { flex-direction: column; }
   main { padding: 1rem; }
 }
@@ -73,7 +149,7 @@ main {
 .tags a,
 .categories a,
 .series a,
-.post-nav a,
+.page-nav a,
 article + aside,
 .admonition,
 article blockquote,
@@ -88,7 +164,17 @@ article td,
 }
 
 /* ===== Tools (Search + Theme) ===== */
-.tool-button { padding: .5rem .75rem; }
+.tool-button {
+    padding: .375rem .5rem;
+    display: inline-flex;
+    align-items: center;
+    gap: .25rem;
+}
+.tool-kbd {
+    display: inline-flex;
+    align-items: center;
+    font-size: 14px;
+}
 
 /* ===== Left Sidebar - Navigation ===== */
 .sidebar-nav {
@@ -103,14 +189,14 @@ article td,
   height: 100svh;
   height: 100vh;
 
-  background: Canvas;
-  color: CanvasText;
+  background: var(--bg);
+  color: var(--fg);
 }
 
 .sidebar-nav-top {
   display: flex;
   gap: .5rem;
-  padding: .5rem 0;
+  padding: 1rem 0;
 
   position: sticky;
   top: 0;
@@ -125,7 +211,7 @@ article td,
 
 .sidebar-nav details { margin: .5rem 0 1rem 0; }
 .sidebar-nav summary {
-  color: grey;
+  color: var(--muted);
   cursor: pointer;
   padding: .25rem 0;
   user-select: none;
@@ -137,7 +223,14 @@ article td,
   margin: 0;
 }
 
-@media (max-width: 1024px) {
+kbd {
+  display: inline-block;
+  font-weight: bold;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+@media (max-width: 768px) {
   .sidebar-nav {
     width: auto;
     height: auto;
@@ -161,7 +254,8 @@ article td,
 
 .sidebar-toc h2 { font-size: 1rem; }
 
-.sidebar-toc .toc { font-size: .875rem; }
+.sidebar-nav nav,
+.sidebar-toc .toc { font-size: 90%; }
 
 .sidebar-toc .toc ul {
   list-style: none;
@@ -190,27 +284,27 @@ article td,
   .sidebar-toc { display: none; }
 }
 
-/* ===== Post listing ===== */
-.posts {
+/* ===== Page listing ===== */
+.pages {
   list-style: none;
   padding: 0;
   margin: 1.5rem 0;
 }
 
-.posts-info { font-size: .875rem; color: grey; }
+.pages-info { font-size: .875rem; color: var(--muted-2); }
 
-.posts li { padding: 1rem 0; }
-.posts h3 { margin: 0 0 .35rem; }
+.pages li { padding: 1rem 0; }
+.pages h3 { margin: 0 0 .35rem; }
 
 /* Metadata (time elements) */
-.posts time,
+.pages time,
 article > div time {
   display: inline-block;
   margin: .35rem 0;
 }
 
-/* Description paragraphs in post lists */
-.posts p { margin: .35rem 0; }
+/* Description paragraphs in page lists */
+.pages p { margin: .35rem 0; }
 
 /* ===== Tags / Categories / Series ===== */
 .tags, .categories, .series {
@@ -250,6 +344,7 @@ article > div time {
   padding: 0;
   width: min(760px, calc(100% - 2rem));
   box-shadow: 0 8px 32px rgba(0, 0, 0, .2);
+  background: var(--bg);
 }
 
 .search-dialog::backdrop {
@@ -269,9 +364,7 @@ article > div time {
 
 .search-dialog-top strong { font-size: 1rem; }
 
-.search-close {
-  padding: .25rem .6rem;
-}
+.search-close { padding: .25rem .6rem; }
 
 /* ===== Pagination ===== */
 .pagination {
@@ -287,28 +380,29 @@ article > div time {
   margin: 0 .15rem;
 }
 
-/* ===== Post Navigation ===== */
-.post-nav {
+/* ===== Page Navigation ===== */
+.page-nav {
   display: flex;
   justify-content: space-between;
   margin: 2rem 0;
   gap: 1rem;
 }
 
-.post-nav > div { flex: 1; }
-.post-nav > div:last-child { text-align: right; }
+.page-nav > div { flex: 1; }
+.page-nav > div:last-child { text-align: right; }
 
-.post-nav a {
+.page-nav a {
   display: block;
   padding: 1rem;
 }
 
 @media (max-width: 768px) {
-  .post-nav { flex-direction: column; }
-  .post-nav > div:last-child { text-align: left; }
+  .page-nav { flex-direction: column; }
+  .page-nav > div:last-child { text-align: left; }
+  .tool-kbd { display: none; }
 }
 
-/* ===== Related Posts (aside) ===== */
+/* ===== Related Pages (aside) ===== */
 article + aside {
   margin: 2rem 0;
   padding: 1rem;
@@ -386,9 +480,5 @@ article pre {
 article pre code {
   display: block;
   padding: 1rem;
-}
-
-article code {
-  padding: .15rem .35rem;
-  font-size: .92rem;
+  font-size: .9375rem;
 }

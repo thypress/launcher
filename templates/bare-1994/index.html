@@ -1,0 +1,177 @@
+---
+name: Bare 1994
+version: 1.0.0
+description: Single file HTML-only theme, ABSOLUTELY barebones
+author: THYPRESS
+singleFile: true
+requires:
+  - navigation
+  - entry
+  - pagination
+---
+<!-- FRONTMATTER COMES FIRST AT THE TOP -->
+<!-- templates/bare-1994/index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>
+    {{#if entry}}
+      {{title}} - {{siteTitle}}
+    {{else if tag}}
+      Tag: {{tag}} - {{siteTitle}}
+    {{else if category}}
+      Category: {{category}} - {{siteTitle}}
+    {{else if entry.series}}
+      Series: {{entry.series}} - {{siteTitle}}
+    {{else}}
+      {{siteTitle}}
+    {{/if}}
+  </title>
+  <meta name="description" content="{{#if description}}{{description}}{{else}}{{siteDescription}}{{/if}}">
+  <style>
+    /* Bare 1994 — minimal responsive alignment */
+    /* Reset the worst defaults */
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    /* Keep content readable on large screens */
+    body {
+        max-width: 40em;
+        margin: 0 auto;
+        padding: 1em;
+        line-height: 1.4;
+    }
+    /* Simple vertical rhythm */
+    header, main, footer { margin-bottom: 2em; }
+    /* Prevent long titles/links from breaking layout */
+    h1, h2, h3, p, li { word-wrap: break-word; }
+    /* Lists shouldn’t hug the edge */
+    ul { padding-left: 1.2em; }
+    /* Navigation links stack naturally on mobile */
+    nav a { display: block; margin: 0.5em 0; }
+    /* On wider screens, allow nav links side by side */
+    @media (min-width: 40em) {
+        nav a { display: inline; margin-right: 1em; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1><a href="/">{{siteTitle}}</a></h1>
+    <p>{{siteDescription}}</p>
+  </header>
+
+  <main>
+    {{#if entry}}
+      <article>
+        <h2>{{title}}</h2>
+        <div>
+          {{entry.createdAt}}
+          {{#if entry.readingTime}} • {{entry.readingTime}} min read{{/if}}
+          {{#if entry.wordCount}} • {{entry.wordCount}} words{{/if}}
+        </div>
+
+        {{{entry.html}}}
+
+        {{#if entry.tags}}
+        <div>
+          {{#each entry.tags}}<a href="/tag/{{this}}/">{{this}}</a>{{#unless @last}}, {{/unless}}{{/each}}
+        </div>
+        {{/if}}
+
+        {{#if entry.categories}}
+        <div>
+          Categories: {{#each entry.categories}}<a href="/category/{{this}}/">{{this}}</a>{{#unless @last}}, {{/unless}}{{/each}}
+        </div>
+        {{/if}}
+
+        {{#if entry.series}}
+        <div>
+          Series: <a href="/series/{{entry.series}}/">{{entry.series}}</a>
+        </div>
+        {{/if}}
+      </article>
+
+      {{#if prevEntry}}{{#if nextEntry}}
+      <nav>
+        {{#if prevEntry}}
+          <a href="{{prevEntry.url}}">← {{prevEntry.title}}</a>
+        {{/if}}
+        {{#if nextEntry}}
+          <a href="{{nextEntry.url}}">{{nextEntry.title}} →</a>
+        {{/if}}
+      </nav>
+      {{/if}}{{/if}}
+
+    {{else if tag}}
+      <h2>Tag: {{tag}}</h2>
+      <ul>
+        {{#each entries}}
+        <li>
+          <h3><a href="{{url}}">{{title}}</a></h3>
+          <div>{{date}}</div>
+          {{#if description}}<p>{{description}}</p>{{/if}}
+        </li>
+        {{/each}}
+      </ul>
+
+    {{else if category}}
+      <h2>Category: {{category}}</h2>
+      <ul>
+        {{#each entries}}
+        <li>
+          <h3><a href="{{url}}">{{title}}</a></h3>
+          <div>{{date}}</div>
+          {{#if description}}<p>{{description}}</p>{{/if}}
+        </li>
+        {{/each}}
+      </ul>
+
+    {{else if entry.series}}
+      <h2>Series: {{entry.series}}</h2>
+      <ul>
+        {{#each entries}}
+        <li>
+          <h3><a href="{{url}}">{{title}}</a></h3>
+          <div>{{date}}</div>
+          {{#if description}}<p>{{description}}</p>{{/if}}
+        </li>
+        {{/each}}
+      </ul>
+
+    {{else}}
+      <h2>Pages</h2>
+      <ul>
+        {{#each entries}}
+        <li>
+          <h3><a href="{{url}}">{{title}}</a></h3>
+          <div>{{date}}</div>
+          {{#if description}}<p>{{description}}</p>{{/if}}
+          {{#if entry.tags}}
+          <div>
+            {{#each entry.tags}}<a href="/tag/{{this}}/">{{this}}</a>{{/each}}
+          </div>
+          {{/if}}
+        </li>
+        {{/each}}
+      </ul>
+
+      {{#if pagination}}
+      <nav>
+        {{#if pagination.hasPrev}}
+          <a href="{{#if (eq pagination.prevPage 1)}}/{{else}}/page/{{pagination.prevPage}}/{{/if}}">← Previous</a>
+        {{/if}}
+        {{#if pagination.hasNext}}
+          <a href="/page/{{pagination.nextPage}}/">Next →</a>
+        {{/if}}
+      </nav>
+      {{/if}}
+    {{/if}}
+  </main>
+
+  <footer>
+    <p>&copy; {{siteTitle}} • <a href="/rss.xml">RSS</a> • <a href="/sitemap.xml">Sitemap</a></p>
+  </footer>
+</body>
+</html>

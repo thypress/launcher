@@ -1,0 +1,371 @@
+---
+name: Conceptiny
+version: 1.0.0
+description: Single file, HTML/CSS pure theme, modern & clean
+author: THYPRESS
+singleFile: true
+requires:
+  - navigation
+  - entry
+  - pagination
+---
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+
+<title>
+  {{#if entry}}
+    {{title}} - {{siteTitle}}
+  {{else if tag}}
+    Tag: {{tag}} - {{siteTitle}}
+  {{else if category}}
+    Category: {{category}} - {{siteTitle}}
+  {{else if entry.series}}
+    Series: {{entry.series}} - {{siteTitle}}
+  {{else}}
+    {{siteTitle}}
+  {{/if}}
+</title>
+
+<meta name="description" content="{{#if description}}{{description}}{{else}}{{siteDescription}}{{/if}}">
+
+<style>
+/* ===============================
+   TOKENS
+================================ */
+:root {
+  --fg: #111;
+  --muted: #8a8a8a;
+  --bg: #ffffff;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --fg: #f2f2f2;
+    --muted: #9a9a9a;
+    --bg: #0e0e0e;
+  }
+}
+
+/* ===============================
+   BASE
+================================ */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI",
+               Roboto, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+}
+
+/* ===============================
+   LAYOUT
+================================ */
+main {
+  padding: 72px 0 120px 96px;
+}
+
+@media (max-width: 720px) {
+  main {
+    padding-left: 24px;
+    padding-right: 24px;
+  }
+}
+
+/* ===============================
+   LOGO
+================================ */
+main > :first-child {  margin-bottom: 56px; }
+
+/* ===============================
+   INDEX / LISTING
+================================ */
+main > section { max-width: 520px; }
+
+main > section:first-of-type { margin-bottom: 72px; }
+
+/* Name / Site title */
+main > section:first-of-type h1 {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+}
+
+/* Role / Site description */
+main > section:first-of-type h1 + p {
+  font-size: 14px;
+  color: var(--muted);
+  margin: 2px 0 24px 0;
+}
+
+/* Bio / Description */
+main > section:first-of-type p:last-child :not(:first-child) {
+  font-size: 15px;
+  margin: 0;
+}
+
+/* Listing headings (tag/category/series/year) */
+main > section:last-of-type h2 {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 48px 0 16px 0;
+}
+
+/* Entry rows */
+main > section:last-of-type > div {
+  display: flex;
+  gap: 24px;
+  margin: 8px 0;
+}
+
+/* Date & entry description */
+main > section:last-of-type > div > :first-child,
+main > section:last-of-type > div > :not(:first-child) > :not(:first-child) {
+  /*width: 64px;*/
+  font-size: 13px;
+  color: var(--muted);
+}
+main > section:last-of-type > div > :not(:first-child) > :not(:first-child) { margin-top: 4px; }
+
+/* Title */
+main > section:last-of-type > div > :last-child {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+main > section:last-of-type a {
+  color: var(--fg);
+  text-decoration: none;
+}
+
+main > section:last-of-type a:hover { text-decoration: underline; }
+
+/* ===============================
+   ARTICLE
+================================ */
+article { max-width: 560px; }
+
+/* Back link */
+article > a {
+  display: inline-block;
+  font-size: 13px;
+  color: var(--muted);
+  text-decoration: none;
+  margin-bottom: 32px;
+}
+
+article > a:hover { text-decoration: underline; }
+
+/* Title */
+article h1 {
+  font-size: 30px;
+  font-weight: 600;
+  line-height: 1.25;
+  margin: 0 0 12px 0;
+}
+
+/* Meta */
+article time,
+article time + div {
+  display: block;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+article time { margin-bottom: 16px; }
+
+/* Body */
+article p {
+  font-size: 16px;
+  margin: 0 0 24px 0;
+}
+
+/* Headings */
+article h2 {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 48px 0 16px 0;
+}
+
+/* Links */
+article p a {
+  color: var(--fg);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+/* Lists */
+article ul {
+  margin: 0 0 24px 20px;
+  padding: 0;
+}
+
+article li { margin: 8px 0; }
+
+/* Blockquotes */
+article blockquote {
+  margin: 32px 0;
+  padding-left: 16px;
+  border-left: 2px solid var(--muted);
+  color: var(--muted);
+}
+
+/* Post metadata (tags, categories, series) */
+article > div {
+  font-size: 13px;
+  color: var(--muted);
+  margin-top: 24px;
+}
+
+article > div a {
+  color: var(--fg);
+  text-decoration: none;
+}
+
+article > div a:hover { text-decoration: underline; }
+
+/* ===============================
+   NAVIGATION
+================================ */
+nav {
+  max-width: 560px;
+  margin-top: 72px;
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+nav a {
+  font-size: 13px;
+  color: var(--fg);
+  text-decoration: none;
+}
+
+nav a:hover { text-decoration: underline; }
+
+/* ===============================
+   FOOTER
+================================ */
+footer {
+  padding-left: 96px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+footer a {
+  color: var(--fg);
+  text-decoration: none;
+}
+
+footer a:hover { text-decoration: underline; }
+
+@media (max-width: 720px) {
+  footer {
+    padding-left: 24px;
+    padding-right: 24px;
+  }
+}
+</style>
+</head>
+
+<body>
+<main>
+  <div>
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M12 6V19" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      <path d="M3 19C3 19 6 17 12 17C18 17 21 19 21 19V6C21 6 18 4 12 4C6 4 3 6 3 6V19Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+    </svg>
+  </div>
+
+  {{#if entry}}
+    <article>
+      <a href="/">← All posts</a>
+
+      <time datetime="{{entry.createdAt}}">
+        {{entry.createdAt}}
+        {{#if entry.readingTime}} • {{entry.readingTime}} min read{{/if}}
+        {{#if entry.wordCount}} • {{entry.wordCount}} words{{/if}}
+      </time>
+
+      {{{entry.html}}}
+
+      {{#if entry.tags}}
+      <div>
+        {{#each entry.tags}}<a href="/tag/{{this}}/">{{this}}</a>{{#unless @last}}, {{/unless}}{{/each}}
+      </div>
+      {{/if}}
+
+      {{#if entry.categories}}
+      <div>
+        Categories:
+        {{#each entry.categories}}<a href="/category/{{this}}/">{{this}}</a>{{#unless @last}}, {{/unless}}{{/each}}
+      </div>
+      {{/if}}
+
+      {{#if entry.series}}
+      <div>
+        Series: <a href="/series/{{entry.series}}/">{{entry.series}}</a>
+      </div>
+      {{/if}}
+    </article>
+
+    {{#if prevEntry}}{{#if nextEntry}}
+    <nav>
+      {{#if prevEntry}}
+        <a href="{{prevEntry.url}}">← {{prevEntry.title}}</a>
+      {{/if}}
+      {{#if nextEntry}}
+        <a href="{{nextEntry.url}}">{{nextEntry.title}} →</a>
+      {{/if}}
+    </nav>
+    {{/if}}{{/if}}
+
+  {{else}}
+    <section>
+      <h1>{{siteTitle}}</h1>
+      <p>{{siteDescription}}</p>
+      {{#if description}}<p>{{description}}</p>{{/if}}
+    </section>
+
+    <section>
+      {{#if tag}}<h2>Tag: {{tag}}</h2>{{/if}}
+      {{#if category}}<h2>Category: {{category}}</h2>{{/if}}
+      {{#if entry.series}}<h2>Series: {{entry.series}}</h2>{{/if}}
+
+      {{#each entries}}
+      <div>
+        <div>{{date}}</div>
+        <div>
+            <a href="{{url}}">{{title}}</a>
+            {{#if description}}<div>{{description}}</div>{{/if}}
+        </div>
+      </div>
+      {{/each}}
+    </section>
+
+    {{#if pagination}}
+    <nav>
+      {{#if pagination.hasPrev}}
+        <a href="{{#if (eq pagination.prevPage 1)}}/{{else}}/page/{{pagination.prevPage}}/{{/if}}">← Previous</a>
+      {{/if}}
+      {{#if pagination.hasNext}}
+        <a href="/page/{{pagination.nextPage}}/">Next →</a>
+      {{/if}}
+    </nav>
+    {{/if}}
+  {{/if}}
+</main>
+
+<footer>
+  <p>&copy; {{siteTitle}} • <a href="/rss.xml">RSS</a> • <a href="/sitemap.xml">Sitemap</a></p>
+</footer>
+</body>
+</html>

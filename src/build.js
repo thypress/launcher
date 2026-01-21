@@ -1,9 +1,17 @@
-/* SPDX-License-Identifier: MPL-2.0
- *
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at https://mozilla.org/MPL/2.0/.
- */
+// Copyright (C) 2026 THYPRESS
+
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as
+// published by the Free Software Foundation, either version 3 of the
+// License, or (at your option) any later version.
+
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <https://www.gnu.org>.
 
 import fs from 'fs';
 import path from 'path';
@@ -15,8 +23,8 @@ import crypto from 'crypto';
 import {
   loadAllContent,
   loadTheme,
-  renderContentList,
-  renderContent,
+  renderEntryList,
+  renderEntry,
   renderTagPage,
   renderCategoryPage,
   renderSeriesPage,
@@ -28,7 +36,7 @@ import {
   generateSearchIndex,
   optimizeImage,
   getSiteConfig,
-  getContentSorted,
+  getEntriesSorted,
   slugify
 } from './renderer.js';
 import { success, error as errorMsg, warning, info, dim, bright } from './utils/colors.js';
@@ -44,7 +52,7 @@ const REDIRECT_STATUS_CODES = {
   308: { type: 'permanent', description: 'Permanent Redirect - Preserves POST data', netlifyCode: '308', vercelPermanent: true },
   302: { type: 'temporary', description: 'Found - General temporary redirect', netlifyCode: '302', vercelPermanent: false },
   307: { type: 'temporary', description: 'Temporary Redirect - Preserves POST data', netlifyCode: '307', vercelPermanent: false },
-  303: { type: 'functional', description: 'See Other - Post-form redirect', netlifyCode: '303', vercelPermanent: false }
+  303: { type: 'functional', description: 'See Other - Page-form redirect', netlifyCode: '303', vercelPermanent: false }
 };
 
 const DEFAULT_STATUS_CODE = 301;
@@ -132,58 +140,66 @@ function copyThemeAssets(themeAssets, activeTheme, siteConfig) {
       if (entry.isDirectory()) {
         copyThemeFiles(srcPath, relPath);
       } else {
-        const { data: frontMatter, content: fileContent } = matter(fs.readFileSync(srcPath, 'utf-8'));
+        try {
+          const { data: frontMatter, content: fileContent } = matter(fs.readFileSync(srcPath, 'utf-8'));
 
-        fs.mkdirSync(path.dirname(path.join(buildAssetsDir, relPath)), { recursive: true });
+          fs.mkdirSync(path.dirname(path.join(buildAssetsDir, relPath)), { recursive: true });
 
-        // Priority 1 - Explicit front-matter
-        if (frontMatter.template === true) {
-          const destPath = path.join(buildAssetsDir, relPath);
-          renderTemplate(fileContent, siteConfig, destPath, relPath);
-          continue;
-        }
-
-        if (frontMatter.template === false) {
-          fs.copyFileSync(srcPath, path.join(buildAssetsDir, relPath));
-          continue;
-        }
-
-        // Priority 2 - Filename conventions
-        const isExplicitTemplate =
-          entry.name.startsWith('template-') ||
-          entry.name.endsWith('.hbs') ||
-          entry.name.endsWith('.handlebars');
-
-        if (isExplicitTemplate) {
-          const destPath = path.join(buildAssetsDir, relPath);
-          renderTemplate(fileContent, siteConfig, destPath, relPath);
-          continue;
-        }
-
-        // Priority 3 - Broad detection (opt-in)
-        if (siteConfig.discoverTemplates === true) {
-          const hasTemplateSyntax = fileContent.includes('{{') || fileContent.includes('{%');
-
-          if (hasTemplateSyntax && (ext === '.css' || ext === '.js' || ext === '.txt' || ext === '.xml')) {
+          // Priority 1 - Explicit front-matter
+          if (frontMatter.template === true) {
             const destPath = path.join(buildAssetsDir, relPath);
-            if (!renderTemplate(fileContent, siteConfig, destPath, relPath, { softFail: true })) {
-              fs.copyFileSync(srcPath, destPath);
-            }
+            renderTemplate(fileContent, siteConfig, destPath, relPath);
             continue;
           }
-        }
 
-        // FEATURE 7: Asset fingerprinting for CSS/JS
-        if (siteConfig.fingerprintAssets && (ext === '.css' || ext === '.js')) {
-          const fingerprint = generateFingerprint(srcPath);
-          const parsedPath = path.parse(relPath);
-          const fingerprintedName = `${parsedPath.name}.${fingerprint}${parsedPath.ext}`;
-          const fingerprintedRelPath = path.join(parsedPath.dir, fingerprintedName);
+          if (frontMatter.template === false) {
+            fs.copyFileSync(srcPath, path.join(buildAssetsDir, relPath));
+            continue;
+          }
 
-          fs.copyFileSync(srcPath, path.join(buildAssetsDir, fingerprintedRelPath));
-          console.log(success(`Fingerprinted: ${fingerprintedRelPath}`));
-        } else {
+          // Priority 2 - Filename conventions
+          const isExplicitTemplate =
+            entry.name.startsWith('template-') ||
+            entry.name.endsWith('.hbs') ||
+            entry.name.endsWith('.handlebars');
+
+          if (isExplicitTemplate) {
+            const destPath = path.join(buildAssetsDir, relPath);
+            renderTemplate(fileContent, siteConfig, destPath, relPath);
+            continue;
+          }
+
+          // Priority 3 - Broad detection (opt-in)
+          if (siteConfig.discoverTemplates === true) {
+            const hasTemplateSyntax = fileContent.includes('{{') || fileContent.includes('{%');
+
+            if (hasTemplateSyntax && (ext === '.css' || ext === '.js' || ext === '.txt' || ext === '.xml')) {
+              const destPath = path.join(buildAssetsDir, relPath);
+              if (!renderTemplate(fileContent, siteConfig, destPath, relPath, { softFail: true })) {
+                fs.copyFileSync(srcPath, destPath);
+              }
+              continue;
+            }
+          }
+
+          // FEATURE 7: Asset fingerprinting for CSS/JS
+          if (siteConfig.fingerprintAssets && (ext === '.css' || ext === '.js')) {
+            const fingerprint = generateFingerprint(srcPath);
+            const parsedPath = path.parse(relPath);
+            const fingerprintedName = `${parsedPath.name}.${fingerprint}${parsedPath.ext}`;
+            const fingerprintedRelPath = path.join(parsedPath.dir, fingerprintedName);
+
+            fs.copyFileSync(srcPath, path.join(buildAssetsDir, fingerprintedRelPath));
+            console.log(success(`Fingerprinted: ${fingerprintedRelPath}`));
+          } else {
+            fs.copyFileSync(srcPath, path.join(buildAssetsDir, relPath));
+          }
+        } catch (error) {
+          // Binary file or malformed - treat as static
+          fs.mkdirSync(path.dirname(path.join(buildAssetsDir, relPath)), { recursive: true });
           fs.copyFileSync(srcPath, path.join(buildAssetsDir, relPath));
+          console.log(dim(`Static: ${relPath} (${error.message})`));
+          continue;
         }
       }
     }
@@ -357,28 +373,28 @@ function cleanupOrphanedImages(imageReferences, cacheDir) {
   return removed;
 }
 
-function buildContent(contentCache, templates, navigation, siteConfig, mode) {
+function buildEntries(contentCache, templates, navigation, siteConfig, mode) {
   let count = 0;
 
-  for (const [slug, content] of contentCache) {
-    if (content.type === 'html' && content.renderedHtml !== null) continue;
+  for (const [slug, entry] of contentCache) {
+    if (entry.type === 'html' && entry.renderedHtml !== null) continue;
 
-    const outputPath = path.join(BUILD_DIR, content.url.substring(1), 'index.html');
+    const outputPath = path.join(BUILD_DIR, entry.url.substring(1), 'index.html');
     fs.mkdirSync(path.dirname(outputPath), { recursive: true });
 
-    const html = renderContent(content, slug, templates, navigation, siteConfig, contentCache);
+    const html = renderEntry(entry, slug, templates, navigation, siteConfig, contentCache);
     fs.writeFileSync(outputPath, html);
     count++;
   }
 
-  console.log(success(`Generated ${count} content pages`));
+  console.log(success(`Generated ${count} entry pages`));
 }
 
 function buildIndexPages(contentCache, templates, navigation, siteConfig) {
   const POSTS_PER_PAGE = 10;
   const totalPages = Math.ceil(contentCache.size / POSTS_PER_PAGE);
 
-  const indexHtml = renderContentList(contentCache, 1, templates, navigation, siteConfig);
+  const indexHtml = renderEntryList(contentCache, 1, templates, navigation, siteConfig);
   fs.writeFileSync(path.join(BUILD_DIR, 'index.html'), indexHtml);
   console.log(success(`Generated index.html`));
 
@@ -386,7 +402,7 @@ function buildIndexPages(contentCache, templates, navigation, siteConfig) {
     const pageDir = path.join(BUILD_DIR, 'page', page.toString());
     fs.mkdirSync(pageDir, { recursive: true });
 
-    const pageHtml = renderContentList(contentCache, page, templates, navigation, siteConfig);
+    const pageHtml = renderEntryList(contentCache, page, templates, navigation, siteConfig);
     fs.writeFileSync(path.join(pageDir, 'index.html'), pageHtml);
   }
 
@@ -520,7 +536,7 @@ function buildLlmsTxt(contentCache, siteConfig, themeAssets) {
     if (themeAssets.has('llms.txt')) {
       const asset = themeAssets.get('llms.txt');
       if (asset.type === 'template') {
-        const recentContent = getContentSorted(contentCache).slice(0, 10).map(c => ({
+        const recentContent = getEntriesSorted(contentCache).slice(0, 10).map(c => ({
           title: c.title,
           url: c.url,
           slug: c.slug
@@ -531,7 +547,7 @@ function buildLlmsTxt(contentCache, siteConfig, themeAssets) {
           siteTitle: siteConfig.title || 'My Site',
           siteDescription: siteConfig.description || 'A site powered by THYPRESS',
           siteUrl: siteConfig.url || 'https://example.com',
-          recentPosts: recentContent,
+          recentPages: recentContent,
           allTags: allTags,
           ...siteConfig
         });
@@ -539,8 +555,8 @@ function buildLlmsTxt(contentCache, siteConfig, themeAssets) {
         content = asset.content;
       }
     } else {
-      const recentContent = getContentSorted(contentCache).slice(0, 10);
-      content = `# ${siteConfig.title || 'My Site'}\n\n> ${siteConfig.description || 'A site powered by THYPRESS'}\n\n## Recent Posts\n`;
+      const recentContent = getEntriesSorted(contentCache).slice(0, 10);
+      content = `# ${siteConfig.title || 'My Site'}\n\n> ${siteConfig.description || 'A site powered by THYPRESS'}\n\n## Recent Pages\n`;
 
       for (const item of recentContent) {
         content += `- [${item.title}](${siteConfig.url || 'https://example.com'}${item.url})\n`;
@@ -773,13 +789,19 @@ function buildRedirects() {
       let fallbackPath;
 
       if (rule.from.endsWith('/')) {
-        // Path with trailing slash: /old-post/
+        // Path with trailing slash: /old-page/
         fallbackPath = path.join(BUILD_DIR, rule.from, 'index.html');
       } else {
-        // Path without trailing slash: /old-post
-        // Create both /old-post.html and /old-post/index.html for maximum compatibility
+        // Path without trailing slash: /old-page
+        // Create both /old-page.html and /old-page/index.html for maximum compatibility
         const htmlPath = path.join(BUILD_DIR, rule.from + '.html');
         const indexPath = path.join(BUILD_DIR, rule.from, 'index.html');
+
+        // Check for existing files
+        if (fs.existsSync(htmlPath) || fs.existsSync(indexPath)) {
+          console.log(warning(`Redirect conflict: ${rule.from} - path already exists, skipping`));
+          continue;
+        }
 
         // Generate and write both versions
         const html = generateFallbackHTML(rule.to, rule.statusCode);
@@ -951,8 +973,8 @@ export async function build() {
     return;
   }
 
-  if (!templatesCache.has('post')) {
-    console.log(errorMsg('Missing required template: post.html'));
+  if (!templatesCache.has('entry')) {
+    console.log(errorMsg('Missing required template: entry.html'));
     return;
   }
 
@@ -972,7 +994,7 @@ export async function build() {
   if (brokenImages.length > 0) {
     console.log(warning(`\nBroken image references detected:`));
     for (const broken of brokenImages) {
-      console.log(dim(`  • ${broken.post} → ${broken.src} (file not found)`));
+      console.log(dim(`  • ${broken.page} → ${broken.src} (file not found)`));
     }
     console.log('');
   }
@@ -982,7 +1004,7 @@ export async function build() {
 
   const imagesCount = await optimizeImagesFromContent(imageReferences, BUILD_DIR, true);
 
-  buildContent(contentCache, templatesCache, navigation, siteConfig, mode);
+  buildEntries(contentCache, templatesCache, navigation, siteConfig, mode);
   buildIndexPages(contentCache, templatesCache, navigation, siteConfig);
   buildTagPages(contentCache, templatesCache, navigation, siteConfig);
   buildCategoryPages(contentCache, templatesCache, navigation, siteConfig);
@@ -1009,7 +1031,7 @@ export async function optimizeToCache(imageReferences, brokenImages) {
   if (brokenImages.length > 0) {
     console.log(warning(`Broken image references detected:`));
     for (const broken of brokenImages) {
-      console.log(dim(`  • ${broken.post} → ${broken.src} (file not found)`));
+      console.log(dim(`  • ${broken.page} → ${broken.src} (file not found)`));
     }
     console.log('');
   }

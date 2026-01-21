@@ -22,10 +22,10 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
   {{/if}}
 
   <main>
-    {{#if hasPostsList}}
+    {{#if hasPagesList}}
       {{> @partial-block}}
     {{else}}
-      <div id="posts-list">
+      <div id="pages-list">
         {{> @partial-block}}
       </div>
     {{/if}}
@@ -35,7 +35,9 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
       <p><a href="/rss.xml">RSS</a> | <a href="/sitemap.xml">Sitemap</a></p>
     {{/if}}
 
-    <span style="font-weight: bold; font-size: .625rem;">website made with <a title="Text files into instant websites. Drag, drop, done." href="http://thypress.org">THYPRESS</a></span>
+    <span style="display: block; font-weight: bold; font-size: .75rem; text-align: right;">
+        Powered by <a title="Turn text files into instant websites. Drag, drop, done." href="http://thypress.org">THYPRESS</a>
+    </span>
   </main>
 
   {{> _sidebar-toc}}

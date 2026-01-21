@@ -92,14 +92,14 @@ thypress serve
 That's it. Your site is live at `http://localhost:3009`.
 
 THYPRESS auto-creates:
-- `content/posts/2024-01-01-welcome.md` (example post)
+- `content/pages/2024-01-01-welcome.md` (example page)
 - `templates/my-press/` (your theme folder)
 - `config.json` (site configuration)
 
 ### 3. Add Content
 
 ```bash
-echo "# Hello World" > content/posts/hello.md
+echo "# Hello World" > content/pages/hello.md
 ```
 
 The page appears instantly. No restart needed.
@@ -292,7 +292,7 @@ thypress build --serve --no-browser
 thypress serve
 
 # Terminal 2: Edit content
-echo "# New Post" > content/posts/new.md
+echo "# New Page" > content/pages/new.md
 # Server detects change and re-renders
 ```
 
@@ -309,9 +309,9 @@ THYPRESS automatically detects your content structure:
 ```
 my-blog/
 ├── content/              ← Detected: creates structured site
-│   ├── posts/           → Blog posts
+│   ├── pages/           → Blog pages
 │   │   ├── 2024-01-01-welcome.md
-│   │   └── 2024-01-15-second-post.md
+│   │   └── 2024-01-15-second-page.md
 │   ├── docs/            → Documentation
 │   │   ├── getting-started.md
 │   │   └── api/
@@ -320,13 +320,13 @@ my-blog/
 ├── templates/           ← Themes
 │   └── my-press/
 │       ├── index.html
-│       ├── post.html
+│       ├── page.html
 │       └── style.css
 └── config.json          ← Site configuration
 ```
 
 **URLs generated:**
-- `content/posts/2024-01-01-welcome.md` → `/posts/2024-01-01-welcome/`
+- `content/pages/2024-01-01-welcome.md` → `/pages/2024-01-01-welcome/`
 - `content/docs/getting-started.md` → `/docs/getting-started/`
 - `content/about.md` → `/about/`
 
@@ -338,7 +338,7 @@ my-blog/
 
 ```
 my-blog/
-├── posts/               ← Detected: creates flat blog
+├── pages/               ← Detected: creates flat blog
 │   ├── 2024-01-01-welcome.md
 │   └── 2024-01-15-second.md
 ├── templates/
@@ -346,7 +346,7 @@ my-blog/
 ```
 
 **URLs generated:**
-- `posts/2024-01-01-welcome.md` → `/2024-01-01-welcome/`
+- `pages/2024-01-01-welcome.md` → `/2024-01-01-welcome/`
 
 **Best for:** Simple blogs migrated from v0.1.
 
@@ -377,12 +377,12 @@ THYPRESS supports three content types:
 #### Markdown (`.md`)
 ```markdown
 ---
-title: My Post
+title: My Page
 date: 2024-01-01
 tags: [blog, tech]
 ---
 
-# My Post
+# My Page
 
 Content here.
 ```
@@ -432,7 +432,7 @@ THYPRESS detects HTML intent:
 **Fragment (wrapped in template):**
 ```html
 <h1>My Content</h1>
-<p>This will be wrapped in post.html template.</p>
+<p>This will be wrapped in page.html template.</p>
 ```
 
 **Force raw output:**
@@ -447,7 +447,7 @@ template: none
 **Force templated output:**
 ```html
 ---
-template: post
+template: page
 ---
 <h1>Fragment</h1>
 <p>Even though this looks complete, wrap it.</p>
@@ -461,7 +461,7 @@ Optional YAML metadata at the top of files:
 
 ```yaml
 ---
-title: "Post Title"               # Optional: auto-detected from H1 or filename
+title: "Page Title"               # Optional: auto-detected from H1 or filename
 date: 2024-01-01                  # Optional: auto-detected from filename or file date
 createdAt: 2024-01-01             # Alias for 'date'
 updatedAt: 2024-01-15             # Optional: defaults to file modification time
@@ -475,7 +475,7 @@ author: "Author Name"             # Optional: defaults to config.json author
 
 **Minimal example (all auto-detected):**
 ```markdown
-# My Post Title
+# My Page Title
 
 Content here.
 ```
@@ -500,11 +500,11 @@ THYPRESS extracts:
 
 | File Path | URL |
 |-----------|-----|
-| `content/posts/hello.md` | `/posts/hello/` |
+| `content/pages/hello.md` | `/pages/hello/` |
 | `content/about.md` | `/about/` |
 | `content/docs/api/auth.md` | `/docs/api/auth/` |
 | `content/index.md` | `/` |
-| `posts/2024-01-01-welcome.md` | `/2024-01-01-welcome/` (legacy mode) |
+| `pages/2024-01-01-welcome.md` | `/2024-01-01-welcome/` (legacy mode) |
 
 **Date prefixes are preserved in URLs** (unlike Jekyll).
 
@@ -533,15 +533,15 @@ THYPRESS automatically:
 ```html
 <picture>
   <source
-    srcset="/posts/photo-400-abc123.webp 400w, /posts/photo-800-abc123.webp 800w, /posts/photo-1200-abc123.webp 1200w"
+    srcset="/pages/photo-400-abc123.webp 400w, /pages/photo-800-abc123.webp 800w, /pages/photo-1200-abc123.webp 1200w"
     type="image/webp"
     sizes="(max-width: 400px) 400px, (max-width: 800px) 800px, 1200px">
   <source
-    srcset="/posts/photo-400-abc123.jpg 400w, /posts/photo-800-abc123.jpg 800w, /posts/photo-1200-abc123.jpg 1200w"
+    srcset="/pages/photo-400-abc123.jpg 400w, /pages/photo-800-abc123.jpg 800w, /pages/photo-1200-abc123.jpg 1200w"
     type="image/jpeg"
     sizes="(max-width: 400px) 400px, (max-width: 800px) 800px, 1200px">
   <img
-    src="/posts/photo-800-abc123.jpg"
+    src="/pages/photo-800-abc123.jpg"
     alt="Alt text"
     loading="lazy"
     decoding="async">
@@ -556,18 +556,18 @@ THYPRESS automatically:
 ```
 Resolves to: `content/images/logo.png`
 
-**Relative to post directory:**
+**Relative to page directory:**
 ```markdown
 ![Diagram](./diagram.png)
 ![Other](../images/other.png)
 ```
-Resolves relative to the post's location.
+Resolves relative to the page's location.
 
 **Relative without `./`:**
 ```markdown
 ![Photo](photo.jpg)
 ```
-Resolves relative to post directory.
+Resolves relative to page directory.
 
 #### Performance
 
@@ -594,10 +594,10 @@ Resolves relative to post directory.
 ```json
 [
   {
-    "id": "post-slug",
-    "title": "Post Title",
-    "slug": "post-slug",
-    "url": "/posts/post-slug/",
+    "id": "page-slug",
+    "title": "Page Title",
+    "slug": "page-slug",
+    "url": "/pages/page-slug/",
     "date": "2024-01-01",
     "tags": ["blog"],
     "description": "Short description",
@@ -608,7 +608,7 @@ Resolves relative to post directory.
 
 2. **Template includes search UI** (in default theme):
 ```html
-<input type="text" id="search" placeholder="Search posts..." />
+<input type="text" id="search" placeholder="Search pages..." />
 <div id="search-results"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/minisearch@7.1.0/dist/umd/index.min.js"></script>
@@ -636,7 +636,7 @@ tags: [blog, tutorial, javascript]
 
 THYPRESS automatically:
 1. **Creates tag pages**: `/tag/blog/`, `/tag/tutorial/`, `/tag/javascript/`
-2. **Lists tagged posts** sorted by date (newest first)
+2. **Lists tagged pages** sorted by date (newest first)
 3. **Generates tag clouds** (if your theme supports it)
 
 #### Template
@@ -646,7 +646,7 @@ Tag pages use `templates/{theme}/tag.html`:
 <h1>Tag: {{tag}}</h1>
 
 <ul>
-  {{#each posts}}
+  {{#each pages}}
   <li>
     <a href="{{url}}">{{title}}</a>
     <span>{{date}}</span>
@@ -661,7 +661,7 @@ Tag pages use `templates/{theme}/tag.html`:
 
 **Automatic pagination** for the homepage.
 
-**Default**: 10 posts per page (defined in `src/renderer.js`).
+**Default**: 10 pages per page (defined in `src/renderer.js`).
 
 **URLs generated:**
 - Page 1: `/`
@@ -705,7 +705,7 @@ Homepage gets a `pagination` object:
 #### RSS Feed (`/rss.xml`)
 
 Generated automatically with:
-- Last 20 posts
+- Last 20 pages
 - Full content or description
 - Pub date, updated date
 - Tags as categories
@@ -743,7 +743,7 @@ Sitemap: https://example.com/sitemap.xml
 Your folder structure:
 ```
 content/
-├── posts/
+├── pages/
 │   ├── 2024-01-01-first.md
 │   └── 2024-01-15-second.md
 ├── docs/
@@ -812,7 +812,7 @@ function hello(name) {
 ```
 ````
 
-**Change theme** by editing `templates/{theme}/post.html`:
+**Change theme** by editing `templates/{theme}/page.html`:
 ```html
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
 ```
@@ -846,7 +846,7 @@ function hello(name) {
 | `title` | string | No | `"My Site"` | Site name (used in title tags, RSS, etc.) |
 | `description` | string | No | `"A site powered by THYPRESS"` | Site description (meta tags) |
 | `url` | string | No | `"https://example.com"` | Production URL (for absolute URLs) |
-| `author` | string | No | `"Anonymous"` | Default author (overridable per post) |
+| `author` | string | No | `"Anonymous"` | Default author (overridable per page) |
 | `theme` | string | No | First in `templates/` | Theme folder name (e.g., `"my-press"`) |
 | `index` | string | No | `null` | Custom homepage slug (e.g., `"welcome"` uses `/welcome/` as `/`) |
 
@@ -866,7 +866,7 @@ THYPRESS works with an **empty config**:
 ```yaml
 ---
 # Content Metadata
-title: "Post Title"                # Post title (auto from H1 or filename)
+title: "Page Title"                # Page title (auto from H1 or filename)
 date: 2024-01-01                   # Publication date (auto from filename/file)
 createdAt: 2024-01-01              # Alias for 'date'
 updatedAt: 2024-01-15              # Last updated (auto from mtime)
@@ -921,8 +921,8 @@ customField: "Any value"           # Access via {{frontMatter.customField}}
 **Required files** (minimum):
 ```
 templates/my-theme/
-├── index.html          # Homepage (list of posts)
-├── post.html           # Individual post/page
+├── index.html          # Homepage (list of pages)
+├── page.html           # Individual page/page
 └── tag.html            # Tag archive page
 ```
 
@@ -956,9 +956,9 @@ templates/my-theme/
 {{author}}              Default author
 ```
 
-#### Page Variables (post.html, tag.html)
+#### Page Variables (page.html, tag.html)
 ```handlebars
-{{title}}               Page/post title
+{{title}}               Page/page title
 {{content}}             Rendered HTML content
 {{date}}                Display date (YYYY-MM-DD)
 {{createdAt}}           Created date (YYYY-MM-DD)
@@ -966,9 +966,9 @@ templates/my-theme/
 {{createdAtISO}}        ISO 8601 date (for <time> tags)
 {{updatedAtISO}}        ISO 8601 updated date
 {{tags}}                Array of tags
-{{description}}         Post description
-{{url}}                 Post URL (/posts/slug/)
-{{slug}}                Post slug (posts/slug)
+{{description}}         Page description
+{{url}}                 Page URL (/pages/slug/)
+{{slug}}                Page slug (pages/slug)
 {{ogImage}}             OpenGraph image path (or null)
 {{wordCount}}           Word count (number)
 {{readingTime}}         Reading time in minutes (number)
@@ -982,7 +982,7 @@ templates/my-theme/
 
 #### List Page Variables (index.html)
 ```handlebars
-{{posts}}               Array of post objects
+{{pages}}               Array of page objects
 {{pagination}}          Pagination object (if multiple pages)
 ```
 
@@ -1000,18 +1000,18 @@ templates/my-theme/
 #### Tag Page Variables (tag.html)
 ```handlebars
 {{tag}}                 Current tag name
-{{posts}}               Array of posts with this tag
+{{pages}}               Array of pages with this tag
 ```
 
-#### Prev/Next Navigation (post.html)
+#### Prev/Next Navigation (page.html)
 ```handlebars
-{{prevPost}}            Previous post object (or null)
-{{prevPost.title}}      Previous post title
-{{prevPost.url}}        Previous post URL
+{{prevEntry}}            Previous page object (or null)
+{{prevEntry.title}}      Previous page title
+{{prevEntry.url}}        Previous page URL
 
-{{nextPost}}            Next post object (or null)
-{{nextPost.title}}      Next post title
-{{nextPost.url}}        Next post URL
+{{nextEntry}}            Next page object (or null)
+{{nextEntry.title}}      Next page title
+{{nextEntry.url}}        Next page URL
 ```
 
 ---
@@ -1075,9 +1075,9 @@ Creates:
 ```
 build/
 ├── index.html                    # Homepage
-├── posts/
+├── pages/
 │   └── welcome/
-│       └── index.html            # Post pages
+│       └── index.html            # Page pages
 ├── tag/
 │   └── blog/
 │       └── index.html            # Tag pages
@@ -1361,9 +1361,9 @@ thypress build --serve
 - `serve`: ~3,000 req/s (renders on demand)
 - `build --serve`: ~11,000 req/s (pre-rendered)
 
-#### 3. Limit Posts Per Page
+#### 3. Limit Pages Per Page
 
-Default: 10 posts/page. Edit `src/renderer.js` if building from source:
+Default: 10 pages/page. Edit `src/renderer.js` if building from source:
 ```javascript
 export const POSTS_PER_PAGE = 20;
 ```
@@ -1454,7 +1454,7 @@ preCompressContent()
 
 #### 5. Request Handling
 ```
-GET /posts/welcome/
+GET /pages/welcome/
   → Check pre-compressed cache
      - Accept-Encoding: br or gzip?
      - If-None-Match: ETag match? → 304
@@ -1547,7 +1547,7 @@ curl -X POST http://localhost:3009/__thypress/clear-cache
 ### File Watching
 
 **Watched paths:**
-1. `content/` (or `posts/` in legacy mode)
+1. `content/` (or `pages/` in legacy mode)
 2. `templates/`
 3. `config.json`
 

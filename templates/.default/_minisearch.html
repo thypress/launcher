@@ -10,7 +10,7 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
   let miniSearch;
   const searchInput = document.getElementById('search-input');
   const searchResults = document.getElementById('search-results');
-  const postsList = document.getElementById('posts-list');
+  const pagesList = document.getElementById('pages-list');
 
   fetch('/search.json')
     .then(r => r.json())
@@ -34,41 +34,64 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
     if (!query) {
       searchResults.style.display = 'none';
-      postsList.style.display = 'block';
+      pagesList.style.display = 'block';
       return;
     }
 
     if (!miniSearch) {
-      searchResults.innerHTML = '<p>Loading...</p>';
+      searchResults.textContent = '';
+      const loadingP = document.createElement('p');
+      loadingP.textContent = 'Loading...';
+      searchResults.appendChild(loadingP);
       searchResults.style.display = 'block';
       return;
     }
 
     const results = miniSearch.search(query);
 
+    searchResults.textContent = '';
+
     if (results.length === 0) {
-      searchResults.innerHTML = '<p>No results found.</p>';
+      const noResultsP = document.createElement('p');
+      noResultsP.textContent = 'No results found.';
+      searchResults.appendChild(noResultsP);
     } else {
-      searchResults.innerHTML = results.slice(0, 10).map(result => {
-        return `
-          <div class="search-result">
-            <h4><a href="${result.url}">${result.title}</a></h4>
-            <div class="meta">${result.date}</div>
-            ${result.description ? `<p>${result.description}</p>` : ''}
-          </div>
-        `;
-      }).join('');
+      results.slice(0, 10).forEach(result => {
+        const resultDiv = document.createElement('div');
+        resultDiv.className = 'search-result';
+
+        const h4 = document.createElement('h4');
+        const a = document.createElement('a');
+        a.href = result.url;
+        a.textContent = result.title;
+        h4.appendChild(a);
+
+        const metaDiv = document.createElement('div');
+        metaDiv.className = 'meta';
+        metaDiv.textContent = result.date;
+
+        resultDiv.appendChild(h4);
+        resultDiv.appendChild(metaDiv);
+
+        if (result.description) {
+          const descP = document.createElement('p');
+          descP.textContent = result.description;
+          resultDiv.appendChild(descP);
+        }
+
+        searchResults.appendChild(resultDiv);
+      });
     }
 
     searchResults.style.display = 'block';
-    postsList.style.display = 'none';
+    pagesList.style.display = 'none';
   });
 
   document.addEventListener('click', (e) => {
     if (!searchInput.contains(e.target) && !searchResults.contains(e.target)) {
       if (searchInput.value === '') {
         searchResults.style.display = 'none';
-        postsList.style.display = 'block';
+        pagesList.style.display = 'block';
       }
     }
   });

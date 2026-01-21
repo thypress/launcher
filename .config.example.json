@@ -1,0 +1,40 @@
+{
+  "_comment": "THYPRESS Configuration File",
+
+  "title": "My Site",
+  "description": "A site powered by THYPRESS",
+  "url": "https://example.com",
+  "author": "Anonymous",
+
+  "_comment_content": "Content Configuration",
+  "contentDir": "content",
+  "skipDirs": ["tmp", "backup"],
+
+  "_comment_theme": "Theme Configuration",
+  "theme": "my-press",
+  "strictThemeIsolation": false,
+
+  "_comment_features": "Feature Flags",
+  "readingSpeed": 200,
+  "escapeTextFiles": true,
+  "strictImages": false,
+  "discoverTemplates": false,
+  "fingerprintAssets": false,
+
+  "_comment_usage": "Configuration Options",
+  "_options": {
+    "title": "Site name (used in meta tags and templates)",
+    "description": "Site description (SEO and social media)",
+    "url": "Full site URL including https:// (no trailing slash)",
+    "author": "Default author name (can be overridden per page)",
+    "contentDir": "Directory containing markdown files (default: content)",
+    "skipDirs": "Additional directories to skip when detecting root content",
+    "theme": "Active theme name from templates/ folder",
+    "strictThemeIsolation": "Prevent fallback to embedded theme (default: false)",
+    "readingSpeed": "Words per minute for reading time calculation (default: 200)",
+    "escapeTextFiles": "HTML-escape .txt files for security (default: true)",
+    "strictImages": "Exit build on broken image references (default: false)",
+    "discoverTemplates": "Auto-detect template syntax in assets (default: false)",
+    "fingerprintAssets": "Add content hash to CSS/JS filenames (default: false)"
+  }
+}

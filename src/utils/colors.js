@@ -14,15 +14,23 @@
 // along with this program.  If not, see <https://www.gnu.org>.
 
 export const colors = {
-  reset: '\x1b[0m',
-  bright: '\x1b[1m',
-  dim: '\x1b[2m',
-  red: '\x1b[31m',
-  green: '\x1b[32m',
-  // yellow: '\x1b[33m', // This color is not properly working for "Warning"
-  blue: '\x1b[34m',
-  cyan: '\x1b[36m',
-  gray: '\x1b[90m',
+  // IMPORTANT: These three colors simply do not work on Windows 10/Powershell 5.1 due to lack of ANSI compliance
+  // Should not be used overall just to play on the safe side of things but still here for documentation purposes
+  // Bright fallbacks to Warning, Yellow is just plain text color and Magenta completely disappears with the text
+  // bright: '\x1b[1m',
+  // yellow:  '\x1b[33m',   // Brown on some hardware
+  // magenta: '\x1b[35m',
+
+  reset:   '\x1b[0m',
+
+  red:     '\x1b[31m',
+  green:   '\x1b[32m',
+  blue:    '\x1b[34m',
+  cyan:    '\x1b[36m',
+  white:   '\x1b[37m',
+  // Purist hacks
+  gray:    '\x1b[1;30m',
+  warning: '\x1b[1;33m',
 };
 
 /**
@@ -48,10 +56,10 @@ const supportsColor = () => {
 const paint = (colorCode, text) => supportsColor() ? `${colorCode}${text}${colors.reset}` : text;
 
 // Standardized to 1 space after icon for alignment
-export const success = (msg) => `${paint(colors.green, '[done]')} ${msg}`;
-export const error = (msg) => `${paint(colors.red, '[fail]')} ${msg}`;
-export const warning = (msg) => `${paint(colors.bright, '[warn]')} ${msg}`;
-export const info = (msg) => `${paint(colors.blue, '[info]')} ${msg}`;
+export const success = (msg) => `${paint(colors.green, '[SUCCESS]')} ${msg}`;
+export const error = (msg) => `${paint(colors.red, '[ERROR]')} ${msg}`;
+export const warning = (msg) => `${paint(colors.warning, '[WARNING]')} ${msg}`;
+export const info = (msg) => `${paint(colors.blue, '[INFO]')} ${msg}`;
 
-export const dim = (msg) => paint(colors.dim, msg);
-export const bright = (msg) => paint(colors.bright, msg);
+export const bright = (msg) => paint(colors.white, msg);
+export const dim = (msg) => paint(colors.gray, msg);

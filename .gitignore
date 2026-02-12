@@ -151,4 +151,6 @@ config.json
 .cache/
 build/
 
-templates/my-press/
+# Sharp bindings (distributed separately)
+sharp.node
+*.node

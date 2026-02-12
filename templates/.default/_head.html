@@ -15,26 +15,26 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
   {{#if pageTitlePrefix}}
     <title>{{pageTitlePrefix}}{{pageTitleValue}}</title>
   {{else}}
-    <title>{{siteTitle}}</title>
+    <title>{{config.title}}</title>
   {{/if}}
 {{/if}}
 
-<meta name="description" content="{{#if pageDescription}}{{pageDescription}}{{else}}{{siteDescription}}{{/if}}">
+<meta name="description" content="{{#if pageDescription}}{{pageDescription}}{{else}}{{config.description}}{{/if}}">
 
 {{#if entry}}
   <!-- Open Graph / Facebook -->
   <meta property="og:type" content="article">
   <meta property="og:title" content="{{pageTitle}}">
   <meta property="og:description" content="{{pageDescription}}">
-  <meta property="og:url" content="{{siteUrl}}{{entry.url}}">
+  <meta property="og:url" content="{{config.url}}{{entry.url}}">
   {{#if entry.ogImage}}
-  <meta property="og:image" content="{{siteUrl}}{{entry.ogImage}}">
+  <meta property="og:image" content="{{config.url}}{{entry.ogImage}}">
   {{/if}}
-  <meta property="og:site_name" content="{{siteTitle}}">
+  <meta property="og:site_name" content="{{config.title}}">
   <meta property="article:published_time" content="{{entry.createdAtISO}}">
   <meta property="article:modified_time" content="{{entry.updatedAtISO}}">
   {{#if author}}
-  <meta property="article:author" content="{{author}}">
+  <meta property="article:author" content="{{config.author}}">
   {{/if}}
 
   <!-- Twitter -->
@@ -42,13 +42,13 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
   <meta name="twitter:title" content="{{pageTitle}}">
   <meta name="twitter:description" content="{{pageDescription}}">
   {{#if entry.ogImage}}
-  <meta name="twitter:image" content="{{siteUrl}}{{entry.ogImage}}">
+  <meta name="twitter:image" content="{{config.url}}{{entry.ogImage}}">
   {{/if}}
 
   <!-- SEO -->
-  <link rel="canonical" href="{{siteUrl}}{{entry.url}}">
+  <link rel="canonical" href="{{config.url}}{{entry.url}}">
   {{#if author}}
-  <meta name="author" content="{{author}}">
+  <meta name="author" content="{{config.author}}">
   {{/if}}
 
   <!-- JSON-LD Structured Data -->
@@ -64,35 +64,35 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
   "timeRequired": "PT{{entry.readingTime}}M",{{/if}}
   "author": {
     "@type": "Person",
-    "name": "{{author}}"
+    "name": "{{config.author}}"
   },{{#if entry.ogImage}}
-  "image": "{{siteUrl}}{{entry.ogImage}}",{{/if}}
+  "image": "{{config.url}}{{entry.ogImage}}",{{/if}}
   "publisher": {
     "@type": "Organization",
-    "name": "{{siteTitle}}",
-    "url": "{{siteUrl}}"
+    "name": "{{config.title}}",
+    "url": "{{config.url}}"
   },
   "mainEntityOfPage": {
     "@type": "WebPage",
-    "@id": "{{siteUrl}}{{entry.url}}"
+    "@id": "{{config.url}}{{entry.url}}"
   }
 }
   </script>
 {{else}}
   <!-- Open Graph / Facebook -->
   <meta property="og:type" content="website">
-  <meta property="og:title" content="{{#if pageTitle}}{{pageTitle}}{{else}}{{#if pageTitlePrefix}}{{pageTitlePrefix}}{{pageTitleValue}}{{else}}{{siteTitle}}{{/if}}{{/if}}">
-  <meta property="og:description" content="{{#if pageDescription}}{{pageDescription}}{{else}}{{siteDescription}}{{/if}}">
-  <meta property="og:url" content="{{siteUrl}}{{#if url}}{{entry.url}}{{else}}/{{/if}}">
-  <meta property="og:site_name" content="{{siteTitle}}">
+  <meta property="og:title" content="{{#if pageTitle}}{{pageTitle}}{{else}}{{#if pageTitlePrefix}}{{pageTitlePrefix}}{{pageTitleValue}}{{else}}{{config.title}}{{/if}}{{/if}}">
+  <meta property="og:description" content="{{#if pageDescription}}{{pageDescription}}{{else}}{{config.description}}{{/if}}">
+  <meta property="og:url" content="{{config.url}}{{#if url}}{{entry.url}}{{else}}/{{/if}}">
+  <meta property="og:site_name" content="{{config.title}}">
 
   <!-- Twitter -->
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="{{#if pageTitle}}{{pageTitle}}{{else}}{{#if pageTitlePrefix}}{{pageTitlePrefix}}{{pageTitleValue}}{{else}}{{siteTitle}}{{/if}}{{/if}}">
-  <meta name="twitter:description" content="{{#if pageDescription}}{{pageDescription}}{{else}}{{siteDescription}}{{/if}}">
+  <meta name="twitter:title" content="{{#if pageTitle}}{{pageTitle}}{{else}}{{#if pageTitlePrefix}}{{pageTitlePrefix}}{{pageTitleValue}}{{else}}{{config.title}}{{/if}}{{/if}}">
+  <meta name="twitter:description" content="{{#if pageDescription}}{{pageDescription}}{{else}}{{config.description}}{{/if}}">
 
   <!-- SEO -->
-  <link rel="canonical" href="{{siteUrl}}{{#if url}}{{entry.url}}{{else}}/{{/if}}">
+  <link rel="canonical" href="{{config.url}}{{#if url}}{{entry.url}}{{else}}/{{/if}}">
 {{/if}}
 
 <script>

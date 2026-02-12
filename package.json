@@ -11,11 +11,15 @@
     "templates/"
   ],
   "scripts": {
+    "test": "bun test",
+    "test:watch": "bun test --watch",
+    "test:coverage": "bun test --coverage",
     "predev": "bun src/embed-templates.js",
     "dev": "bun src/cli.js serve",
     "build:static": "bun src/cli.js build",
     "prebuild:exe": "bun src/embed-templates.js",
-    "build:exe": "bun build ./src/cli.js --compile --windows-icon=./icon.ico --windows-publisher=\"THYPRESS™\" --windows-title=\"THYPRESS BINDER\" --windows-description=\"Dead simple markdown blog/docs engine\" --windows-version=\"0.3.0\" --windows-copyright=\"© 2026 THYPRESS™\" --outfile=\"THYPRESS BINDER\""
+    "build:exe": "bun src/build-exe.js",
+    "build:exe:all": "bun src/build-exe.js win32,darwin,linux"
   },
   "dependencies": {
     "@zip.js/zip.js": "^2.3.18",
@@ -26,6 +30,8 @@
     "htmlparser2": "^10.0.0",
     "markdown-it": "^14.0.0",
     "markdown-it-anchor": "^9.2.0",
+    "markdown-it-container": "^4.0.0",
+    "markdown-it-github-alerts": "^1.0.1",
     "markdown-it-highlightjs": "^4.0.1",
     "sharp": "^0.33.0",
     "sitemap": "^7.1.1"
@@ -46,5 +52,8 @@
   "license": "MPL-2.0",
   "engines": {
     "node": ">=18.0.0"
+  },
+  "devDependencies": {
+    "bundlerbus": "^1.0.0"
   }
 }

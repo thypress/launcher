@@ -18,19 +18,23 @@ requires:
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>
     {{#if entry}}
-      {{title}} - {{siteTitle}}
+      {{entry.title}} - {{config.title}}
     {{else if tag}}
-      Tag: {{tag}} - {{siteTitle}}
+      Tag: {{tag}} - {{config.title}}
     {{else if category}}
-      Category: {{category}} - {{siteTitle}}
-    {{else if entry.series}}
-      Series: {{entry.series}} - {{siteTitle}}
+      Category: {{category}} - {{config.title}}
+    {{else if series}}
+      Series: {{series}} - {{config.title}}
     {{else}}
-      {{siteTitle}}
+      {{config.title}}
     {{/if}}
   </title>
-  <meta name="description" content="{{#if description}}{{description}}{{else}}{{siteDescription}}{{/if}}">
+  <meta name="description" content="{{#if entry.description}}{{entry.description}}{{else}}{{config.description}}{{/if}}">
   <style>
+    /* Slight modern twist */
+    @import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400..700;1,400..700&display=swap');
+    html, body, input, button { font-family: "Lora", serif; font-optical-sizing: auto; font-style: normal; }
+
     /* Bare 1994 — minimal responsive alignment */
     /* Reset the worst defaults */
     * { box-sizing: border-box; }
@@ -46,132 +50,152 @@ requires:
     header, main, footer { margin-bottom: 2em; }
     /* Prevent long titles/links from breaking layout */
     h1, h2, h3, p, li { word-wrap: break-word; }
-    /* Lists shouldn’t hug the edge */
-    ul { padding-left: 1.2em; }
+    /* Lists shouldn't hug the edge */
+    ul { padding-left: 1.25em; }
     /* Navigation links stack naturally on mobile */
     nav a { display: block; margin: 0.5em 0; }
     /* On wider screens, allow nav links side by side */
     @media (min-width: 40em) {
         nav a { display: inline; margin-right: 1em; }
     }
+    /* Ensure article doesn't overflow */
+    article, article > * { max-width: 100%; overflow-wrap: break-word; }
+    article picture { display: block; margin: 1.25em 0; }
+    article img { max-width: 100%; height: auto; display: block; }
+    /* Prevent code block overflow */
+    article pre { overflow-x: auto; }
   </style>
 </head>
 <body>
   <header>
-    <h1><a href="/">{{siteTitle}}</a></h1>
-    <p>{{siteDescription}}</p>
+    <h1><a href="/">{{config.title}}</a></h1>
+    <p>{{config.description}}</p>
   </header>
 
   <main>
-    {{#if entry}}
-      <article>
-        <h2>{{title}}</h2>
-        <div>
-          {{entry.createdAt}}
-          {{#if entry.readingTime}} • {{entry.readingTime}} min read{{/if}}
-          {{#if entry.wordCount}} • {{entry.wordCount}} words{{/if}}
-        </div>
+      {{#if (eq pageType '404')}}
+        <!-- 404 PAGE -->
+        <h2>404 - Page Not Found</h2>
+        <p>The page you're looking for doesn't exist.</p>
+        <p><a href="/">← Back to Home</a></p>
 
-        {{{entry.html}}}
+      {{else if entry}}
+        <!-- ENTRY PAGE -->
+        <article>
+          <!--<h2>{{entry.title}}</h2>-->
+          <div>
+            {{#if entry.author}}By {{entry.author}} · {{/if}}
+            {{entry.createdAt}}
+            {{#if entry.updatedAt}} · Updated {{entry.updatedAt}}{{/if}}
+            {{#if entry.readingTime}} · {{entry.readingTime}} min read{{/if}}
+            {{#if entry.wordCount}} · {{entry.wordCount}} words{{/if}}
+          </div>
 
-        {{#if entry.tags}}
-        <div>
-          {{#each entry.tags}}<a href="/tag/{{this}}/">{{this}}</a>{{#unless @last}}, {{/unless}}{{/each}}
-        </div>
-        {{/if}}
+          {{{entry.html}}}
 
-        {{#if entry.categories}}
-        <div>
-          Categories: {{#each entry.categories}}<a href="/category/{{this}}/">{{this}}</a>{{#unless @last}}, {{/unless}}{{/each}}
-        </div>
-        {{/if}}
-
-        {{#if entry.series}}
-        <div>
-          Series: <a href="/series/{{entry.series}}/">{{entry.series}}</a>
-        </div>
-        {{/if}}
-      </article>
-
-      {{#if prevEntry}}{{#if nextEntry}}
-      <nav>
-        {{#if prevEntry}}
-          <a href="{{prevEntry.url}}">← {{prevEntry.title}}</a>
-        {{/if}}
-        {{#if nextEntry}}
-          <a href="{{nextEntry.url}}">{{nextEntry.title}} →</a>
-        {{/if}}
-      </nav>
-      {{/if}}{{/if}}
-
-    {{else if tag}}
-      <h2>Tag: {{tag}}</h2>
-      <ul>
-        {{#each entries}}
-        <li>
-          <h3><a href="{{url}}">{{title}}</a></h3>
-          <div>{{date}}</div>
-          {{#if description}}<p>{{description}}</p>{{/if}}
-        </li>
-        {{/each}}
-      </ul>
-
-    {{else if category}}
-      <h2>Category: {{category}}</h2>
-      <ul>
-        {{#each entries}}
-        <li>
-          <h3><a href="{{url}}">{{title}}</a></h3>
-          <div>{{date}}</div>
-          {{#if description}}<p>{{description}}</p>{{/if}}
-        </li>
-        {{/each}}
-      </ul>
-
-    {{else if entry.series}}
-      <h2>Series: {{entry.series}}</h2>
-      <ul>
-        {{#each entries}}
-        <li>
-          <h3><a href="{{url}}">{{title}}</a></h3>
-          <div>{{date}}</div>
-          {{#if description}}<p>{{description}}</p>{{/if}}
-        </li>
-        {{/each}}
-      </ul>
-
-    {{else}}
-      <h2>Pages</h2>
-      <ul>
-        {{#each entries}}
-        <li>
-          <h3><a href="{{url}}">{{title}}</a></h3>
-          <div>{{date}}</div>
-          {{#if description}}<p>{{description}}</p>{{/if}}
           {{#if entry.tags}}
           <div>
-            {{#each entry.tags}}<a href="/tag/{{this}}/">{{this}}</a>{{/each}}
+            {{#each entry.tags}}<a href="/tag/{{this}}/">{{this}}</a>{{#unless @last}}, {{/unless}}{{/each}}
           </div>
           {{/if}}
-        </li>
-        {{/each}}
-      </ul>
 
-      {{#if pagination}}
-      <nav>
-        {{#if pagination.hasPrev}}
-          <a href="{{#if (eq pagination.prevPage 1)}}/{{else}}/page/{{pagination.prevPage}}/{{/if}}">← Previous</a>
+          {{#if entry.categories}}
+          <div>
+            Categories: {{#each entry.categories}}<a href="/category/{{this}}/">{{this}}</a>{{#unless @last}}, {{/unless}}{{/each}}
+          </div>
+          {{/if}}
+
+          {{#if entry.series}}
+          <div>
+            Series: <a href="/series/{{entry.series}}/">{{entry.series}}</a>
+          </div>
+          {{/if}}
+        </article>
+
+        {{#if prevEntry}}{{#if nextEntry}}
+        <nav>
+          {{#if prevEntry}}
+            <a href="{{prevEntry.url}}">← {{prevEntry.title}}</a>
+          {{/if}}
+          {{#if nextEntry}}
+            <a href="{{nextEntry.url}}">{{nextEntry.title}} →</a>
+          {{/if}}
+        </nav>
+        {{/if}}{{/if}}
+
+      {{else if tag}}
+        <!-- TAG PAGE -->
+        <h2>Tag: {{tag}}</h2>
+        <ul>
+          {{#each entries}}
+          <li>
+            <h3><a href="{{url}}">{{title}}</a></h3>
+            <div>{{date}}</div>
+            {{#if description}}<p>{{description}}</p>{{/if}}
+          </li>
+          {{/each}}
+        </ul>
+
+      {{else if category}}
+        <!-- CATEGORY PAGE -->
+        <h2>Category: {{category}}</h2>
+        <ul>
+          {{#each entries}}
+          <li>
+            <h3><a href="{{url}}">{{title}}</a></h3>
+            <div>{{date}}</div>
+            {{#if description}}<p>{{description}}</p>{{/if}}
+          </li>
+          {{/each}}
+        </ul>
+
+      {{else if series}}
+        <!-- SERIES PAGE -->
+        <h2>Series: {{series}}</h2>
+        <ul>
+          {{#each entries}}
+          <li>
+            <h3><a href="{{url}}">{{title}}</a></h3>
+            <div>{{date}}</div>
+            {{#if description}}<p>{{description}}</p>{{/if}}
+          </li>
+          {{/each}}
+        </ul>
+
+      {{else}}
+        <!-- HOMEPAGE -->
+        <h2>Pages</h2>
+        <ul>
+          {{#each entries}}
+          <li>
+            <h3><a href="{{url}}">{{title}}</a></h3>
+            <div>{{date}}</div>
+            {{#if description}}<p>{{description}}</p>{{/if}}
+            {{#if tags}}
+            <div>
+              {{#each tags}}<a href="/tag/{{this}}/">{{this}}</a>{{#unless @last}}, {{/unless}}{{/each}}
+            </div>
+            {{/if}}
+          </li>
+          {{/each}}
+        </ul>
+
+        {{#if pagination}}
+        <nav>
+          {{#if pagination.hasPrev}}
+            <a href="{{#if (eq pagination.prevPage 1)}}/{{else}}/page/{{pagination.prevPage}}/{{/if}}">← Previous</a>
+          {{/if}}
+          {{#if pagination.hasNext}}
+            <a href="/page/{{pagination.nextPage}}/">Next →</a>
+          {{/if}}
+        </nav>
         {{/if}}
-        {{#if pagination.hasNext}}
-          <a href="/page/{{pagination.nextPage}}/">Next →</a>
-        {{/if}}
-      </nav>
       {{/if}}
-    {{/if}}
-  </main>
+    </main>
 
   <footer>
-    <p>&copy; {{siteTitle}} • <a href="/rss.xml">RSS</a> • <a href="/sitemap.xml">Sitemap</a></p>
+    <p>&copy; {{config.title}} • <a href="/rss.xml">RSS</a> • <a href="/sitemap.xml">Sitemap</a></p>
+    <small><b>Powered by <a title="Turn text files into instant websites for FREE. Drag, drop, done." href="http://thypress.org">THYPRESS</a></b></small>
   </footer>
 </body>
 </html>

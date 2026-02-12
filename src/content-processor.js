@@ -11,27 +11,41 @@
 // GNU Affero General Public License for more details.
 
 // You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see <https://www.gnu.org>.
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import MarkdownIt from 'markdown-it';
-import markdownItHighlight from 'markdown-it-highlightjs';
-import markdownItAnchor from 'markdown-it-anchor';
-import matter from 'gray-matter';
-import sharp from 'sharp';
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
+import sharp from 'sharp';
+import matter from 'gray-matter';
+import MarkdownIt from 'markdown-it';
+import markdownItAnchor from 'markdown-it-anchor';
+import markdownItAlerts from 'markdown-it-github-alerts';
+import markdownItContainer from 'markdown-it-container';
+import markdownItHighlight from 'markdown-it-highlightjs';
 import { parseDocument } from 'htmlparser2';
 import { success, error as errorMsg, warning, info, dim } from './utils/colors.js';
 import { slugify, normalizeToWebPath, getSiteConfig } from './utils/taxonomy.js';
 
-// Markdown-it setup
-const md = new MarkdownIt();
+// ============================================================================
+// MARKDOWN-IT SETUP
+// ============================================================================
+
+const md = new MarkdownIt({
+  html: true,
+  linkify: true,
+  typographer: true
+});
+
 md.use(markdownItHighlight);
 md.use(markdownItAnchor, {
   permalink: false,
   slugify: (s) => slugify(s)
 });
+
+// ============================================================================
+// CONSTANTS
+// ============================================================================
 
 // Standard responsive image sizes
 const STANDARD_IMAGE_SIZES = [400, 800, 1200];
@@ -55,10 +69,35 @@ const DEFAULT_SKIP_DIRS = [
   '__tests__'
 ];
 
+// ============================================================================
+// RESERVED FIELDS FOR PROTECTED SPREAD
+// ============================================================================
+// These fields are core metadata and should never be overwritten by custom
+// front-matter fields. Custom fields are safely spread alongside these.
+// ============================================================================
+
+const RESERVED_FIELDS = new Set([
+  'slug', 'url', 'filename', 'title', 'date', 'createdAt', 'updatedAt',
+  'tags', 'categories', 'series', 'html', 'rawContent', 'description',
+  'ogImage', 'wordCount', 'readingTime', 'section', 'type', 'toc',
+  'headings', 'relativePath', 'dateISO', 'createdAtISO', 'updatedAtISO',
+  'renderedHtml'
+]);
+
+// ============================================================================
+// UTILITY FUNCTIONS
+// ============================================================================
+
+/**
+ * Check if file/folder should be ignored (dotfiles)
+ */
 function shouldIgnore(name) {
   return name.startsWith('.');
 }
 
+/**
+ * Check if path contains a drafts folder
+ */
 function isInDraftsFolder(relativePath) {
   return relativePath
     .split(/[\\/]+/)
@@ -76,6 +115,10 @@ function escapeHtml(text) {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
 }
+
+// ============================================================================
+// HTML DETECTION & PROCESSING
+// ============================================================================
 
 /**
  * Detect if HTML content is a complete document
@@ -99,7 +142,7 @@ function isCompleteHtmlDocument(htmlContent) {
   } catch {
     const cleaned = htmlContent.trim()
       .replace(/^<\?xml[^>]*>\s*/i, '')
-      .replace(/^<!--[\s\S]*?-->\s*/g, '');
+      .replace(/^\s*/g, '');
 
     return /^<!DOCTYPE\s+html/i.test(cleaned) ||
           /<(html|head|body)[\s>]/i.test(cleaned);
@@ -169,6 +212,10 @@ function extractHeadingsFromHtml(htmlContent) {
   return headings;
 }
 
+// ============================================================================
+// TABLE OF CONTENTS
+// ============================================================================
+
 /**
  * Build hierarchical TOC structure from flat headings array
  */
@@ -200,6 +247,10 @@ export function buildTocStructure(headings, minLevel = 2, maxLevel = 4) {
   return toc;
 }
 
+// ============================================================================
+// MARKDOWN-IT PLUGINS
+// ============================================================================
+
 /**
  * Setup heading extractor for markdown-it
  */
@@ -213,10 +264,15 @@ function setupHeadingExtractor(md) {
     const level = parseInt(token.tag.substring(1));
     const nextToken = tokens[idx + 1];
     const content = nextToken && nextToken.type === 'inline' ? nextToken.content : '';
-    const slug = token.attrGet('id') || '';
+    const slug = token.attrGet('id') || slugify(content);
 
     if (!env.headings) env.headings = [];
     env.headings.push({ level, content, slug });
+
+    // Ensure ID attribute exists for linking
+    if (!token.attrGet('id')) {
+      token.attrSet('id', slug);
+    }
 
     return originalHeadingOpen(tokens, idx, options, env, self);
   };
@@ -225,81 +281,30 @@ function setupHeadingExtractor(md) {
 setupHeadingExtractor(md);
 
 /**
- * Setup admonitions/callouts for markdown-it
+ * Setup admonitions with dual syntax support
+ * Supports both ::: syntax and GitHub > [!TYPE] syntax
  */
 function setupAdmonitions(md) {
-  const admonitionTypes = {
-    'note': { icon: 'ℹ️', class: 'admonition-note' },
-    'tip': { icon: '💡', class: 'admonition-tip' },
-    'warning': { icon: '⚠️', class: 'admonition-warning' },
-    'danger': { icon: '🚨', class: 'admonition-danger' },
-    'info': { icon: 'ℹ️', class: 'admonition-info' }
-  };
+  // GitHub-style alerts (> [!WARNING])
+  md.use(markdownItAlerts);
 
-  md.block.ruler.before('fence', 'admonition', function(state, startLine, endLine, silent) {
-    const marker = ':::';
-    const pos = state.bMarks[startLine] + state.tShift[startLine];
-    const max = state.eMarks[startLine];
+  // Container-style admonitions (::: warning)
+  const admonitionTypes = ['note', 'tip', 'warning', 'danger', 'info'];
 
-    if (pos + 3 > max) return false;
-    if (state.src.slice(pos, pos + 3) !== marker) return false;
-
-    const typeMatch = state.src.slice(pos + 3, max).trim().toLowerCase();
-    if (!admonitionTypes[typeMatch]) return false;
-
-    if (silent) return true;
-
-    let nextLine = startLine;
-    let autoClosed = false;
-
-    while (nextLine < endLine) {
-      nextLine++;
-      if (nextLine >= endLine) break;
-
-      const linePos = state.bMarks[nextLine] + state.tShift[nextLine];
-      const lineMax = state.eMarks[nextLine];
-
-      if (linePos < lineMax && state.sCount[nextLine] < state.blkIndent) break;
-
-      if (state.src.slice(linePos, linePos + 3) === marker) {
-        autoClosed = true;
-        break;
+  admonitionTypes.forEach(type => {
+    md.use(markdownItContainer, type, {
+      render: (tokens, idx) => {
+        if (tokens[idx].nesting === 1) {
+          const title = type.toUpperCase();
+          return `<div class="admonition admonition-${type}">
+                    <div class="admonition-title">${title}</div>
+                    <div class="admonition-content">`;
+        } else {
+          return `</div></div>\n`;
+        }
       }
-    }
-
-    const oldParent = state.parentType;
-    const oldLineMax = state.lineMax;
-    state.parentType = 'admonition';
-
-    const token = state.push('admonition_open', 'div', 1);
-    token.markup = marker;
-    token.block = true;
-    token.info = typeMatch;
-    token.map = [startLine, nextLine];
-
-    state.md.block.tokenize(state, startLine + 1, nextLine);
-
-    const closeToken = state.push('admonition_close', 'div', -1);
-    closeToken.markup = marker;
-    closeToken.block = true;
-
-    state.parentType = oldParent;
-    state.lineMax = oldLineMax;
-    state.line = nextLine + (autoClosed ? 1 : 0);
-
-    return true;
+    });
   });
-
-  md.renderer.rules.admonition_open = function(tokens, idx) {
-    const token = tokens[idx];
-    const type = token.info;
-    const config = admonitionTypes[type];
-    return `<div class="admonition ${config.class}"><div class="admonition-title">${config.icon} ${type.toUpperCase()}</div><div class="admonition-content">`;
-  };
-
-  md.renderer.rules.admonition_close = function() {
-    return '</div></div>\n';
-  };
 }
 
 setupAdmonitions(md);
@@ -322,6 +327,7 @@ function setupImageOptimizer(md) {
     const src = token.attrs[srcIndex][1];
     const alt = altIndex >= 0 ? token.attrs[altIndex][1] : '';
 
+    // Skip external images
     if (src.startsWith('http://') || src.startsWith('https://') || src.startsWith('//')) {
       return defaultRender(tokens, idx, options, env, self);
     }
@@ -355,11 +361,10 @@ function setupImageOptimizer(md) {
     const imageResolved = path.resolve(resolvedImagePath);
     if (!imageResolved.startsWith(contentDirResolved)) {
       console.log(warning(`Image outside content directory (ignored): ${src}`));
-      return `<!-- Image blocked: ${src} -->`;
+      return ``;
     }
 
     const hash = crypto.createHash('md5').update(resolvedImagePath).digest('hex').substring(0, 8);
-
     const urlBase = outputDir === '.' ? '' : `${outputDir}/`;
 
     let sizesToGenerate = [...STANDARD_IMAGE_SIZES];
@@ -406,6 +411,10 @@ function setupImageOptimizer(md) {
 
 setupImageOptimizer(md);
 
+// ============================================================================
+// IMAGE OPTIMIZATION
+// ============================================================================
+
 /**
  * Optimize image to multiple sizes and formats
  */
@@ -434,6 +443,7 @@ export async function optimizeImage(imagePath, outputDir, sizesToGenerate = STAN
 
   try {
     for (const size of sizesToGenerate) {
+      // WebP variant
       const webpFilename = `${name}-${size}-${hash}.webp`;
       const webpPath = path.join(outputDir, webpFilename);
       await sharp(imagePath)
@@ -445,6 +455,7 @@ export async function optimizeImage(imagePath, outputDir, sizesToGenerate = STAN
         .toFile(webpPath);
       optimized.push({ format: 'webp', size, filename: webpFilename });
 
+      // JPEG variant
       const jpegFilename = `${name}-${size}-${hash}.jpg`;
       const jpegPath = path.join(outputDir, jpegFilename);
       await sharp(imagePath)
@@ -462,6 +473,10 @@ export async function optimizeImage(imagePath, outputDir, sizesToGenerate = STAN
 
   return optimized;
 }
+
+// ============================================================================
+// CONTENT METADATA PROCESSING
+// ============================================================================
 
 /**
  * Calculate reading statistics
@@ -517,29 +532,46 @@ function isValidBirthtime(stats) {
 }
 
 /**
- * Process page metadata
+ * Process page metadata with MINIMAL intervention
+ * Only fixes what would break the system, preserves everything else
  */
 export function processPageMetadata(content, filename, frontMatter, isMarkdown, fullPath, siteConfig = {}) {
   const stats = fs.statSync(fullPath);
 
+  // ========================================================================
+  // TITLE EXTRACTION - Preserve original as much as possible
+  // ========================================================================
+
   let title = frontMatter.title;
 
-  if (!title) {
+  // Layer 1: Extract from content (markdown H1)
+  if (!title && isMarkdown) {
     title = extractTitleFromContent(content, isMarkdown);
   }
 
+  // Layer 2: Use filename AS-IS (keep dates, dashes, everything)
   if (!title) {
     const basename = path.basename(filename);
-    title = basename
-      .replace(/\.(md|txt|html)$/, '')
-      .replace(/^\d{4}-\d{2}-\d{2}-/, '')
-      .replace(/[-_]/g, ' ')
-      .trim();
+
+    // Only strip extension - KEEP EVERYTHING ELSE
+    title = basename.replace(/\.(md|txt|html)$/, '');
   }
 
-  if (!title) {
-    title = path.basename(filename).replace(/\.(md|txt|html)$/, '');
+  // Layer 3: Fallback for truly broken cases
+  if (!title || title.trim().length === 0) {
+    // Generate unique identifier for completely empty filenames
+    const pathHash = crypto.createHash('md5')
+      .update(fullPath)
+      .digest('hex')
+      .substring(0, 8);
+
+    title = `untitled-${pathHash}`;
+    console.log(warning(`File has no name: ${fullPath} → Generated: ${title}`));
   }
+
+  // ========================================================================
+  // DATE EXTRACTION (unchanged, this part is fine)
+  // ========================================================================
 
   let createdAt = frontMatter.createdAt || frontMatter.date;
 
@@ -604,18 +636,29 @@ export function generateUrl(relativePath) {
   return '/' + url + (url ? '/' : '');
 }
 
+// ============================================================================
+// MAIN CONTENT PROCESSOR
+// ============================================================================
+
 /**
  * Process a single content file
+ *
+ * Protected spread implementation
+ * - Reserved fields (slug, url, title, etc.) are set first
+ * - Custom front-matter fields are filtered to exclude reserved names
+ * - Safe custom fields are spread at the root level for template access
  */
 export function processContentFile(fullPath, relativePath, mode, contentDir, siteConfig = {}, cachedContent = null) {
   const ext = path.extname(fullPath).toLowerCase();
   const isMarkdown = ext === '.md';
-  const isText = ext === '.txt';
   const isHtml = ext === '.html';
+  // Note: isText removed - was unused, both .txt and .md go through same processing
 
   const webPath = normalizeToWebPath(relativePath);
 
-  // HTML files
+  // ========================================================================
+  // HTML FILES
+  // ========================================================================
   if (isHtml) {
     const rawHtml = fs.readFileSync(fullPath, 'utf-8');
     const { data: frontMatter, content: htmlContent } = matter(rawHtml);
@@ -629,7 +672,7 @@ export function processContentFile(fullPath, relativePath, mode, contentDir, sit
       url = frontMatter.permalink;
       if (!url.startsWith('/')) url = '/' + url;
       if (!url.endsWith('/')) url = url + '/';
-      console.log(dim(`  Using permalink: ${url} (${relativePath})`));
+      console.log(dim(`Using permalink: ${url} (${relativePath})`));
     } else {
       url = generateUrl(webPath);
     }
@@ -653,36 +696,59 @@ export function processContentFile(fullPath, relativePath, mode, contentDir, sit
 
     const taxonomies = extractTaxonomies(frontMatter);
 
+    // UNIFIED: Use processPageMetadata for HTML files too (consistency with MD/TXT)
+    const { title, createdAt, updatedAt, wordCount, readingTime } = processPageMetadata(
+      htmlContent,
+      path.basename(fullPath),
+      frontMatter,
+      false,  // isMarkdown = false for HTML
+      fullPath,
+      siteConfig
+    );
+
+    // Filter custom fields to exclude reserved names
+    const safeCustomFields = {};
+    for (const [key, value] of Object.entries(frontMatter)) {
+      if (!RESERVED_FIELDS.has(key)) {
+        safeCustomFields[key] = value;
+      }
+    }
+
     return {
       slug,
       entry: {
         filename: webPath,
         slug: slug,
         url: url,
-        title: frontMatter.title || path.basename(fullPath, '.html'),
-        date: fs.statSync(fullPath).mtime.toISOString().split('T')[0],
-        createdAt: frontMatter.createdAt || fs.statSync(fullPath).mtime.toISOString().split('T')[0],
-        updatedAt: frontMatter.updatedAt || fs.statSync(fullPath).mtime.toISOString().split('T')[0],
+        title: title,  // Now uses 4-layer fallback with hash
+        date: createdAt,  // Now extracts from filename
+        createdAt: createdAt,
+        updatedAt: updatedAt,
         tags: Array.isArray(frontMatter.tags) ? frontMatter.tags : (frontMatter.tags ? [frontMatter.tags] : []),
         description: frontMatter.description || '',
         html: htmlContent,
         renderedHtml: intent.mode === 'raw' ? htmlContent : null,
-        frontMatter: frontMatter,
         relativePath: webPath,
         ogImage: frontMatter.image || null,
         type: 'html',
-        wordCount: 0,
-        readingTime: 0,
+        wordCount: wordCount,  // Now calculated
+        readingTime: readingTime,  // Now calculated
         section: section,
         toc: toc,
         headings: headings,
-        ...taxonomies
+        categories: taxonomies.categories,
+        series: taxonomies.series,
+
+        // Safe custom fields spread to root level
+        ...safeCustomFields
       },
       imageReferences: []
     };
   }
 
-  // Markdown/Text files
+  // ========================================================================
+  // MARKDOWN/TEXT FILES
+  // ========================================================================
   const rawContent = cachedContent || fs.readFileSync(fullPath, 'utf-8');
   const { data: frontMatter, content } = matter(rawContent);
 
@@ -695,7 +761,7 @@ export function processContentFile(fullPath, relativePath, mode, contentDir, sit
     url = frontMatter.permalink;
     if (!url.startsWith('/')) url = '/' + url;
     if (!url.endsWith('/')) url = url + '/';
-    console.log(dim(`  Using permalink: ${url} (${relativePath})`));
+    console.log(dim(`Using permalink: ${url} (${relativePath})`));
   } else {
     url = generateUrl(webPath);
   }
@@ -706,7 +772,8 @@ export function processContentFile(fullPath, relativePath, mode, contentDir, sit
     pageRelativePath: webPath,
     referencedImages: [],
     contentDir: contentDir,
-    headings: []
+    headings: [],
+    imageDimensionsCache: siteConfig._imageDimensionsCache || new Map()
   };
 
   const renderedHtml = isMarkdown
@@ -744,6 +811,14 @@ export function processContentFile(fullPath, relativePath, mode, contentDir, sit
 
   const taxonomies = extractTaxonomies(frontMatter);
 
+  // Filter custom fields to exclude reserved names
+  const safeCustomFields = {};
+  for (const [key, value] of Object.entries(frontMatter)) {
+    if (!RESERVED_FIELDS.has(key)) {
+      safeCustomFields[key] = value;
+    }
+  }
+
   return {
     slug,
     entry: {
@@ -758,7 +833,6 @@ export function processContentFile(fullPath, relativePath, mode, contentDir, sit
       description: description,
       html: renderedHtml,
       rawContent: content,
-      frontMatter: frontMatter,
       relativePath: webPath,
       ogImage: ogImage,
       wordCount: wordCount,
@@ -767,63 +841,113 @@ export function processContentFile(fullPath, relativePath, mode, contentDir, sit
       type: isMarkdown ? 'markdown' : 'text',
       toc: toc,
       headings: env.headings,
-      ...taxonomies
+      categories: taxonomies.categories,
+      series: taxonomies.series,
+
+      // Safe custom fields spread to root level
+      ...safeCustomFields
     },
     imageReferences: env.referencedImages
   };
 }
 
+// ============================================================================
+// CONTENT STRUCTURE DETECTION
+// ============================================================================
+
 /**
- * Detect content structure and root
+ * Detect content structure and determine mode
+ * Now accepts explicit mode from CLI intent system
  */
 export function detectContentStructure(workingDir, options = {}) {
-  const { cliContentDir = null, cliSkipDirs = null } = options;
+  const {
+    cliContentDir = null,
+    cliSkipDirs = null,
+    intentMode = null,
+    intentContentRoot = null
+  } = options;
 
-  if (cliContentDir) {
-    const cliDir = path.join(workingDir, cliContentDir);
-    if (fs.existsSync(cliDir) && fs.statSync(cliDir).isDirectory()) {
-      console.log(success(`Using CLI-specified content directory: ${cliContentDir}`));
-      return {
-        contentRoot: cliDir,
-        mode: 'structured',
-        customDir: cliContentDir
-      };
-    } else {
-      console.log(errorMsg(`CLI content directory not found: ${cliContentDir}`));
-      process.exit(1);
-    }
-  }
+  console.log(dim(`Detecting content structure in: ${workingDir}`));
 
-  let config = {};
-  try {
-    config = getSiteConfig();
-    if (config.contentDir) {
-      const configDir = path.join(workingDir, config.contentDir);
-      if (!fs.existsSync(configDir) || !fs.statSync(configDir).isDirectory()) {
-        console.log(errorMsg(`Configured contentDir not found: ${config.contentDir}`));
-        console.log(info('Please create the directory or update config.json'));
-        process.exit(1);
-      }
-      console.log(success(`Using configured content directory: ${config.contentDir}`));
-      return {
-        contentRoot: configDir,
-        mode: 'structured',
-        customDir: config.contentDir
-      };
-    }
-  } catch (error) {
-    // No config file
-  }
+  // ========================================================================
+  // PRIORITY 1: Intent system override
+  // If CLI has already determined mode and contentRoot, use it directly
+  // ========================================================================
+  if (intentMode && intentContentRoot) {
+    console.log(info(`Using intent-determined mode: ${intentMode}`));
+    console.log(info(`Content root: ${intentContentRoot}`));
 
-  const contentDir = path.join(workingDir, 'content');
-  if (fs.existsSync(contentDir) && fs.statSync(contentDir).isDirectory()) {
     return {
-      contentRoot: contentDir,
-      mode: 'structured'
+      contentRoot: intentContentRoot,
+      mode: intentMode,
+      shouldInit: false
     };
   }
 
-  let skipDirs = [...DEFAULT_SKIP_DIRS];
+  // ========================================================================
+  // PRIORITY 2: Check config.json for custom contentDir
+  // ========================================================================
+  let config = {};
+  try {
+    const configPath = path.join(workingDir, 'config.json');
+    if (fs.existsSync(configPath)) {
+      config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+
+      if (config.contentDir) {
+        const customContentDir = path.join(workingDir, config.contentDir);
+
+        if (fs.existsSync(customContentDir)) {
+          console.log(success(`Using custom content directory from config: ${config.contentDir}/`));
+
+          return {
+            contentRoot: customContentDir,
+            mode: 'viewer',
+            customDir: config.contentDir
+          };
+        } else {
+          console.log(warning(`Config specifies contentDir "${config.contentDir}" but directory not found`));
+        }
+      }
+    }
+  } catch (error) {
+    // No config file or parse error - continue
+  }
+
+  // ========================================================================
+  // PRIORITY 3: Check for CLI --content-dir flag
+  // ========================================================================
+  if (cliContentDir) {
+    const cliContentPath = path.join(workingDir, cliContentDir);
+
+    if (fs.existsSync(cliContentPath)) {
+      console.log(success(`Using content directory from --content-dir flag: ${cliContentDir}/`));
+
+      return {
+        contentRoot: cliContentPath,
+        mode: 'viewer'
+      };
+    } else {
+      console.log(warning(`CLI flag --content-dir "${cliContentDir}" specified but directory not found`));
+    }
+  }
+
+  // ========================================================================
+  // PRIORITY 4: Check for default content/ directory
+  // ========================================================================
+  const defaultContentDir = path.join(workingDir, 'content');
+  if (fs.existsSync(defaultContentDir) && fs.statSync(defaultContentDir).isDirectory()) {
+    console.log(success('Found content/ directory'));
+
+    return {
+      contentRoot: defaultContentDir,
+      mode: 'viewer'
+    };
+  }
+
+  // ========================================================================
+  // PRIORITY 5: Build skip directory list
+  // ========================================================================
+  let skipDirs = [...DEFAULT_SKIP_DIRS.filter(d => d !== 'templates')];
 
   if (cliSkipDirs) {
     skipDirs = [...skipDirs, ...cliSkipDirs];
@@ -840,116 +964,206 @@ export function detectContentStructure(workingDir, options = {}) {
     return fs.existsSync(dirPath) && fs.statSync(dirPath).isDirectory();
   });
 
-  if (!hasSkippedDirs) {
-    try {
-      const files = fs.readdirSync(workingDir);
-      const contentFiles = files.filter(f => {
-        if (shouldIgnore(f)) return false;
-        const fullPath = path.join(workingDir, f);
+  // ========================================================================
+  // PRIORITY 6: Check for root content files
+  // ========================================================================
+  try {
+    const files = fs.readdirSync(workingDir);
+    const contentFiles = files.filter(f => {
+      if (shouldIgnore(f)) return false;
+      const fullPath = path.join(workingDir, f);
+      try {
         if (!fs.statSync(fullPath).isFile()) return false;
-        return /\.(md|txt|html)$/i.test(f);
-      });
-
-      if (contentFiles.length > 0) {
-        console.log(success(`Found ${contentFiles.length} content file(s) in root`));
-        console.log(info('Using root directory as content'));
-        console.log(dim('  To use subdirectory: create content/ or add contentDir to config.json'));
-
-        return {
-          contentRoot: workingDir,
-          mode: 'structured',
-          rootContent: true
-        };
+      } catch {
+        return false;
       }
-    } catch (error) {
-      // Continue to initialization
+      return /\.(md|txt|html)$/i.test(f);
+    });
+
+    if (contentFiles.length > 0) {
+      console.log(success(`Found ${contentFiles.length} content file(s) in root`));
+      console.log(info('Using root directory as content (viewer mode)'));
+      console.log(dim('Tip: Create content/ folder for organized projects'));
+
+      return {
+        contentRoot: workingDir,
+        mode: 'viewer',
+        rootContent: true
+      };
     }
-  } else {
+  } catch (error) {
+    console.log(warning(`Could not scan root directory: ${error.message}`));
+  }
+
+  // ========================================================================
+  // PRIORITY 7: No content found - needs initialization
+  // ========================================================================
+  if (hasSkippedDirs) {
     const detectedDirs = skipDirs
       .filter(dir => fs.existsSync(path.join(workingDir, dir)))
       .slice(0, 3);
 
     console.log(warning(`Development folders detected: ${detectedDirs.join(', ')}`));
-    console.log(info('Content must be in content/, or set contentDir in config.json'));
+    console.log(info('Content should be in content/ or set contentDir in config.json'));
   }
 
-  console.log(warning('No content directory found'));
-  console.log(info('Will initialize content/ on first run'));
+  console.log(warning('No content directory or files found'));
+  console.log(info('Will initialize project structure'));
 
   return {
-    contentRoot: contentDir,
-    mode: 'structured',
+    contentRoot: defaultContentDir,
+    mode: 'project',
     shouldInit: true
   };
 }
 
+// ============================================================================
+// NAVIGATION TREE
+// ============================================================================
+
 /**
- * Build navigation tree from content
+ * Build navigation tree with MINIMAL intervention
+ * Only handles cases that would break path resolution or cause security issues
  */
 export function buildNavigationTree(contentRoot, contentCache = new Map(), mode = 'structured') {
-  const pathToEntry = new Map();
-  for (const entry of contentCache.values()) {
-    pathToEntry.set(entry.relativePath, entry);
+  if (mode === 'flat') return [];
+
+  const map = new Map();
+
+  // Initialize root node
+  map.set('.', { children: [] });
+
+  /**
+   * Minimal folder name processing
+   * Only fixes path-breaking cases (., .., empty)
+   */
+  function safeFolderName(part, fullPath) {
+    // Security: Block path traversal
+    if (part === '.' || part === '..') {
+      const pathHash = crypto.createHash('md5')
+        .update(fullPath)
+        .digest('hex')
+        .substring(0, 8);
+
+      console.log(errorMsg(`Folder name is path traversal character: ${fullPath}`));
+      return `folder-${pathHash}`;
+    }
+
+    // Handle empty strings
+    if (!part || part.trim().length === 0) {
+      const pathHash = crypto.createHash('md5')
+        .update(fullPath)
+        .digest('hex')
+        .substring(0, 8);
+
+      console.log(warning(`Folder has no name: ${fullPath}`));
+      return `folder-${pathHash}`;
+    }
+
+    // OTHERWISE: Keep as-is (dates, dashes, everything)
+    return part;
   }
 
-  const navigation = [];
+  /**
+   * Minimal file title processing
+   * Just ensures we have SOMETHING to display
+   */
+  function safeFileTitle(entry, filename) {
+    // Use entry's title (already processed by processPageMetadata)
+    if (entry.title && entry.title.trim().length > 0) {
+      return entry.title;
+    }
 
-  function processDirectory(dir, relativePath = '') {
-    const entries = fs.readdirSync(dir, { withFileTypes: true });
-    const items = [];
+    // Use filename as-is
+    if (filename && filename.trim().length > 0) {
+      return path.basename(filename);
+    }
 
-    for (const entry of entries) {
-      if (shouldIgnore(entry.name)) continue;
+    // Fallback for completely broken entries
+    const pathHash = crypto.createHash('md5')
+      .update(entry.url || filename || entry.slug)
+      .digest('hex')
+      .substring(0, 8);
 
-      const fullPath = path.join(dir, entry.name);
-      const relPath = relativePath ? path.join(relativePath, entry.name) : entry.name;
-      const webPath = normalizeToWebPath(relPath);
+    console.log(errorMsg(`Entry has no identifiable name: ${entry.slug}`));
+    return `untitled-${pathHash}`;
+  }
 
-      if (entry.isDirectory() && entry.name === 'drafts') continue;
+  // ========================================================================
+  // BUILD DIRECTORY STRUCTURE
+  // ========================================================================
 
-      if (entry.isDirectory()) {
-        const children = processDirectory(fullPath, relPath);
-        if (children.length > 0) {
-          items.push({
-            type: 'folder',
-            name: entry.name,
-            title: entry.name.replace(/^\d{4}-\d{2}-\d{2}-/, '').replace(/-/g, ' '),
-            children: children
-          });
+  for (const [slug, entry] of contentCache) {
+    if (slug === 'index') continue;
+
+    // Validate entry has filename
+    if (!entry.filename) {
+      console.log(warning(`Entry "${slug}" has no filename, skipping navigation`));
+      continue;
+    }
+
+    const dir = path.dirname(entry.filename);
+    const parts = dir.split(path.sep).filter(p => p && p !== '.');
+
+    let currentPath = '.';
+
+    // Ensure parent folders exist
+    for (const part of parts) {
+      if (!part) continue;
+
+      const parentPath = currentPath;
+      currentPath = currentPath === '.' ? part : path.join(currentPath, part);
+
+      if (!map.has(currentPath)) {
+        const folderFullPath = path.join(contentRoot, currentPath);
+
+        const folderNode = {
+          title: safeFolderName(part, folderFullPath),  // MINIMAL processing
+          url: null,
+          children: [],
+          type: 'folder',
+          path: currentPath
+        };
+
+        map.set(currentPath, folderNode);
+
+        const parent = map.get(parentPath);
+        if (parent) {
+          parent.children.push(folderNode);
         }
-      } else if (/\.(md|txt|html)$/i.test(entry.name)) {
-        const url = generateUrl(webPath);
-
-        const entryData = pathToEntry.get(webPath);
-        const title = entryData ? entryData.title : null;
-
-        const finalTitle = title || entry.name
-          .replace(/\.(md|txt|html)$/, '')
-          .replace(/^\d{4}-\d{2}-\d{2}-/, '')
-          .replace(/-/g, ' ');
-
-        items.push({
-          type: 'file',
-          name: entry.name,
-          title: finalTitle,
-          url: url,
-          path: webPath
-        });
       }
     }
 
-    items.sort((a, b) => {
-      if (a.type !== b.type) {
-        return a.type === 'folder' ? -1 : 1;
-      }
-      return a.name.localeCompare(b.name);
-    });
+    // ========================================================================
+    // ADD FILE NODE
+    // ========================================================================
 
-    return items;
+    const fileNode = {
+      title: safeFileTitle(entry, entry.filename),
+      url: entry.url,
+      active: false,
+      type: 'file'
+    };
+
+    const parentNode = map.get(dir);
+    if (parentNode) {
+      parentNode.children.push(fileNode);
+    } else {
+      const rootNode = map.get('.');
+      if (rootNode) {
+        rootNode.children.push(fileNode);
+      }
+    }
   }
 
-  return processDirectory(contentRoot);
+  // Return the root node's children (where all top-level items are stored)
+  const rootNode = map.get('.');
+  return rootNode ? rootNode.children : [];
 }
+
+// ============================================================================
+// CONTENT LOADER
+// ============================================================================
 
 /**
  * Load all content from directory
@@ -958,27 +1172,49 @@ export function loadAllContent(options = {}) {
   const workingDir = process.cwd();
   const { contentRoot, mode, shouldInit } = detectContentStructure(workingDir, options);
 
-  const contentCache = new Map();
-  const slugMap = new Map();
-  const imageReferences = new Map();
-  const brokenImages = [];
-  const imageDimensionsCache = new Map();
+  // Shadow caches (don't mutate globals until success)
+  const newContentCache = new Map();
+  const newSlugMap = new Map();
+  const newImageReferences = new Map();
+  const newBrokenImages = [];
+  const newImageDimensionsCache = new Map();
 
   console.log(dim(`Content mode: ${mode}`));
   console.log(dim(`Contents root: ${contentRoot}`));
 
   if (shouldInit) {
     console.log(info('No content found, will initialize on first run'));
-    return { contentCache, slugMap, navigation: [], imageReferences, brokenImages, imageDimensionsCache, mode, contentRoot };
+    return {
+      contentCache: newContentCache,
+      slugMap: newSlugMap,
+      navigation: [],
+      imageReferences: newImageReferences,
+      brokenImages: newBrokenImages,
+      imageDimensionsCache: newImageDimensionsCache,
+      mode,
+      contentRoot
+    };
   }
 
   if (!fs.existsSync(contentRoot)) {
     console.log(warning(`Contents directory not found: ${contentRoot}`));
-    return { contentCache, slugMap, navigation: [], imageReferences, brokenImages, imageDimensionsCache, mode, contentRoot };
+    return {
+      contentCache: newContentCache,
+      slugMap: newSlugMap,
+      navigation: [],
+      imageReferences: newImageReferences,
+      brokenImages: newBrokenImages,
+      imageDimensionsCache: newImageDimensionsCache,
+      mode,
+      contentRoot
+    };
   }
 
   const siteConfig = getSiteConfig();
 
+  /**
+   * Pre-scan markdown images to get dimensions
+   */
   async function preScanImageDimensions(content, relativePath) {
     const imageMatches = content.matchAll(/!\[.*?\]\((.*?)\)/g);
 
@@ -1000,16 +1236,21 @@ export function loadAllContent(options = {}) {
         resolvedImagePath = path.resolve(pageDir, src);
       }
 
-      if (fs.existsSync(resolvedImagePath) && !imageDimensionsCache.has(resolvedImagePath)) {
+      if (fs.existsSync(resolvedImagePath) && !newImageDimensionsCache.has(resolvedImagePath)) {
         try {
           const buffer = await fs.promises.readFile(resolvedImagePath);
           const meta = await sharp(buffer).metadata();
-          imageDimensionsCache.set(resolvedImagePath, meta.width);
-        } catch (error) {}
+          newImageDimensionsCache.set(resolvedImagePath, meta.width);
+        } catch (error) {
+          // Ignore errors
+        }
       }
     }
   }
 
+  /**
+   * Recursively load content from directory
+   */
   function loadContentFromDir(dir, relativePath = '') {
     const entries = fs.readdirSync(dir, { withFileTypes: true });
 
@@ -1034,7 +1275,7 @@ export function loadAllContent(options = {}) {
       } else if (/\.(md|txt|html)$/i.test(entry.name)) {
         if (entry.name.startsWith('_')) {
           console.log(warning(`${webPath} uses underscore prefix (intended for template partials, not content)`));
-          console.log(dim(`  Consider using drafts/ folder or draft: true in front matter`));
+          console.log(dim(`Consider using drafts/ folder or draft: true in front matter`));
         }
 
         try {
@@ -1048,27 +1289,37 @@ export function loadAllContent(options = {}) {
             preScanImageDimensions(content, webPath);
           }
 
+          // Pass the shared imageDimensionsCache to config
+          siteConfig._imageDimensionsCache = newImageDimensionsCache;
+
           const result = processContentFile(fullPath, relPath, mode, contentRoot, siteConfig, cachedContent);
 
           if (!result) continue;
 
-          if (slugMap.has(result.slug)) {
-            const existingPath = slugMap.get(result.slug);
+          if (newSlugMap.has(result.slug)) {
+            const existingPath = newSlugMap.get(result.slug);
             console.error(errorMsg(`Duplicate URL detected: ${result.entry.url}`));
-            console.log(dim(`  Used in: ${webPath}`));
-            console.log(dim(`  Already used in: ${existingPath}`));
-            process.exit(1);
+            console.log(dim(`Used in: ${webPath}`));
+            console.log(dim(`Already used in: ${existingPath}`));
+
+            if (process.env.THYPRESS_MODE === 'dynamic') {
+              console.log(warning(`Skipping duplicate in dynamic mode: ${webPath}`));
+              continue;
+            } else {
+              console.error(errorMsg('Exiting due to duplicate URL in build mode'));
+              process.exit(1);
+            }
           }
 
-          contentCache.set(result.slug, result.entry);
-          slugMap.set(webPath, result.slug);
+          newContentCache.set(result.slug, result.entry);
+          newSlugMap.set(webPath, result.slug);
 
           if (result.imageReferences.length > 0) {
-            imageReferences.set(webPath, result.imageReferences);
+            newImageReferences.set(webPath, result.imageReferences);
 
             for (const img of result.imageReferences) {
               if (!fs.existsSync(img.resolvedPath)) {
-                brokenImages.push({
+                newBrokenImages.push({
                   post: webPath,
                   src: img.src,
                   resolvedPath: img.resolvedPath
@@ -1076,7 +1327,7 @@ export function loadAllContent(options = {}) {
 
                 if (siteConfig.strictImages === true) {
                   console.error(errorMsg(`Broken image in ${webPath}: ${img.src}`));
-                  console.log(dim(`  Expected path: ${img.resolvedPath}`));
+                  console.log(dim(`Expected path: ${img.resolvedPath}`));
                   process.exit(1);
                 }
               }
@@ -1090,13 +1341,32 @@ export function loadAllContent(options = {}) {
   }
 
   try {
-      loadContentFromDir(contentRoot);
-      console.log(success(`Loaded ${contentCache.size} entry files`));
-    } catch (error) {
-      console.error(`Error reading content directory: ${error.message}`);
-    }
+    loadContentFromDir(contentRoot);
+    console.log(success(`Loaded ${newContentCache.size} entry files`));
+  } catch (error) {
+    console.error(`Error reading content directory: ${error.message}`);
+    return {
+      contentCache: new Map(),
+      slugMap: new Map(),
+      navigation: [],
+      imageReferences: new Map(),
+      brokenImages: [],
+      imageDimensionsCache: new Map(),
+      mode,
+      contentRoot
+    };
+  }
 
-    const navigation = buildNavigationTree(contentRoot, contentCache, mode);
+  const navigation = buildNavigationTree(contentRoot, newContentCache, mode);
 
-    return { contentCache, slugMap, navigation, imageReferences, brokenImages, imageDimensionsCache, mode, contentRoot };
+  return {
+    contentCache: newContentCache,
+    slugMap: newSlugMap,
+    navigation,
+    imageReferences: newImageReferences,
+    brokenImages: newBrokenImages,
+    imageDimensionsCache: newImageDimensionsCache,
+    mode,
+    contentRoot
+  };
 }

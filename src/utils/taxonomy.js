@@ -85,22 +85,61 @@ export function getEntriesSorted(contentCache) {
 
 /**
  * Load site configuration from config.json
+ * Returns FULL config object - all fields preserved for template access
  */
 export function getSiteConfig() {
-  try {
-    const configPath = path.join(process.cwd(), 'config.json');
-    if (fs.existsSync(configPath)) {
-      return JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-    }
-  } catch (error) {
-    console.error(errorMsg('Error loading config.json:', error.message));
-    console.log(warning('Using default configuration'));
-  }
-
-  return {
+  const defaults = {
+    // === Core Settings ===
     title: 'My Site',
     description: 'A site powered by THYPRESS',
     url: 'https://example.com',
-    author: 'Anonymous'
+    author: 'Anonymous',
+
+    // === Content Processing ===
+    contentDir: 'content',
+    skipDirs: [],
+    readingSpeed: 200,
+    escapeTextFiles: true,
+
+    // === Image Handling ===
+    strictImages: false,
+
+    // === Theme System ===
+    strictThemeIsolation: false,
+    forceTheme: false,
+    discoverTemplates: false,
+    fingerprintAssets: false,
+
+    // === Dynamic Mode (thypress serve) ===
+    disablePreRender: false,        // Skip warmup for faster dev startups
+    preCompressContent: false,      // Pre-compress all pages (opt-in for production)
+    disableLiveReload: false,       // Disable live reload
+
+    // === Validation ===
+    strictPreRender: true,          // Exit if ANY page fails during warmup
+    strictTemplateValidation: true, // Exit if template syntax is invalid
+
+    // === Security ===
+    allowExternalRedirects: false,  // Allow redirects to external URLs
+    allowedRedirectDomains: [],     // Whitelist of allowed domains for redirects
+
+    // === Cache Configuration ===
+    cacheMaxSize: 50 * 1024 * 1024  // 50MB in bytes (configurable)
   };
+
+  try {
+    const configPath = path.join(process.cwd(), 'config.json');
+    if (fs.existsSync(configPath)) {
+      const userConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+
+      // CRITICAL: Merge with defaults but preserve ALL custom fields
+      // This allows theme designers to add any config fields they want
+      return { ...defaults, ...userConfig };
+    }
+  } catch (error) {
+    console.error(`Error loading config.json: ${error.message}`);
+    console.log('Using default configuration');
+  }
+
+  return defaults;
 }

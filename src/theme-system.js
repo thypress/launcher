@@ -11,7 +11,7 @@
 // GNU Affero General Public License for more details.
 
 // You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see <https://www.gnu.org>.
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import fs from 'fs';
 import path from 'path';
@@ -19,56 +19,163 @@ import { fileURLToPath } from 'url';
 import Handlebars from 'handlebars';
 import matter from 'gray-matter';
 import { success, error as errorMsg, warning, info, dim } from './utils/colors.js';
+import { EMBEDDED_TEMPLATES as STATIC_EMBEDDED_TEMPLATES } from './embedded-templates.js';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 
-// Register Handlebars helpers
+// ============================================================================
+// HANDLEBARS HELPERS
+// ============================================================================
+
 Handlebars.registerHelper('eq', (a, b) => a === b);
 Handlebars.registerHelper('split', (str, sep, index) => String(str).split(sep)[index]);
 
-// Handlebars.registerHelper('multiply', (a, b) => a * b);
+// ============================================================================
+// TEMPLATE VALIDATION
+// ============================================================================
 
-// THYPRESS Feature Registry - what the runtime provides to templates
+/**
+ * Validates a Handlebars template string for syntax errors.
+ * @param {string} templateString - The raw template string.
+ * @param {string} filePath - Optional filename for better error messages.
+ * @returns {boolean} - True if valid, False if invalid.
+ */
+export function validateTemplate(templateString, filePath = 'unknown file') {
+  try {
+    // precompile throws immediately if the syntax is invalid
+    Handlebars.precompile(templateString);
+    return true;
+  } catch (err) {
+    console.error(errorMsg(`Template Syntax Error in ${filePath}:`));
+    console.error(err.message);
+    return false;
+  }
+}
+
+// ============================================================================
+// THYPRESS FEATURE REGISTRY
+// ============================================================================
+// Purpose: Validation + Documentation only (NOT runtime filtering)
+// ============================================================================
+
 export const THYPRESS_FEATURES = {
-  // Core variables (always available)
-  navigation: { since: '0.1.0', type: 'core', description: 'Site navigation tree' },
-  entry: { since: '0.3.0', type: 'core', description: 'Single entry object with HTML, title, etc' },
-  siteTitle: { since: '0.1.0', type: 'core', description: 'Site title from config' },
-  siteDescription: { since: '0.1.0', type: 'core', description: 'Site description from config' },
-  siteUrl: { since: '0.1.0', type: 'core', description: 'Site URL from config' },
-  author: { since: '0.1.0', type: 'core', description: 'Site author from config' },
+  // === Core Data ===
+  config: {
+    since: '0.1.0',
+    description: 'Full site configuration from config.json',
+    example: '{{config.title}}, {{config.customField}}'
+  },
 
-  // Content metadata
-  title: { since: '0.1.0', type: 'content', description: 'Page/page title' },
-  date: { since: '0.1.0', type: 'content', description: 'Page date' },
-  createdAt: { since: '0.1.0', type: 'content', description: 'Page creation date' },
-  updatedAt: { since: '0.1.0', type: 'content', description: 'Page last updated date' },
-  description: { since: '0.1.0', type: 'content', description: 'Page description/excerpt' },
-  slug: { since: '0.1.0', type: 'content', description: 'Page URL slug' },
-  url: { since: '0.1.0', type: 'content', description: 'Page full URL path' },
+  theme: {
+    since: '0.3.0',
+    description: 'Theme metadata from theme.json or front-matter',
+    example: '{{theme.name}}, {{theme.accentColor}}'
+  },
 
-  // Features
-  tags: { since: '0.1.0', type: 'feature', description: 'Entry tags array' },
-  toc: { since: '0.1.0', type: 'feature', description: 'Table of content from headings' },
-  pagination: { since: '0.1.0', type: 'feature', description: 'Pagination data for lists' },
-  entries: { since: '0.3.0', type: 'feature', description: 'Entries list (on index/tag pages)' },
-  tag: { since: '0.1.0', type: 'feature', description: 'Current tag (on tag pages)' },
+  navigation: {
+    since: '0.1.0',
+    description: 'Site navigation tree',
+    example: '{{#each navigation}}...{{/each}}'
+  },
 
-  // Advanced features (v0.2.0+)
-  categories: { since: '0.2.0', type: 'feature', description: 'Page categories array' },
-  series: { since: '0.2.0', type: 'feature', description: 'Page series name' },
-  category: { since: '0.2.0', type: 'feature', description: 'Current category (on category pages)' },
-  relatedEntries: { since: '0.2.0', type: 'feature', description: 'Related pages based on tags' },
-  prevEntry: { since: '0.2.0', type: 'navigation', description: 'Previous page in chronological order' },
-  nextEntry: { since: '0.2.0', type: 'navigation', description: 'Next page in chronological order' },
-  wordCount: { since: '0.2.0', type: 'content', description: 'Word count for reading time' },
-  readingTime: { since: '0.2.0', type: 'content', description: 'Estimated reading time in minutes' },
-  ogImage: { since: '0.2.0', type: 'content', description: 'Open Graph image URL' },
+  pageType: {
+    since: '0.3.0',
+    description: 'Current page type identifier',
+    example: '{{#if (eq pageType "entry")}}...{{/if}}'
+  },
 
-  // Context flags
-  hasEntriesList: { since: '0.3.0', type: 'context', description: 'True if page shows entries list' },
-  showToc: { since: '0.2.0', type: 'context', description: 'True if TOC should be displayed' }
+  // === Entry Context ===
+  entry: {
+    since: '0.1.0',
+    description: 'Current entry object (title, html, tags, etc + all custom fields)',
+    example: '{{entry.title}}, {{{entry.html}}}, {{entry.customField}}'
+  },
+
+  // === Lists ===
+  entries: {
+    since: '0.1.0',
+    description: 'Array of entries for index/tag/category pages',
+    example: '{{#each entries}}{{title}}{{/each}}'
+  },
+
+  pagination: {
+    since: '0.1.0',
+    description: 'Pagination data for multi-page lists',
+    example: '{{pagination.currentPage}}, {{pagination.hasNext}}'
+  },
+
+  hasEntriesList: {
+    since: '0.3.0',
+    description: 'Boolean flag indicating list pages',
+    example: '{{#if hasEntriesList}}...{{/if}}'
+  },
+
+  // === Taxonomies ===
+  tags: {
+    since: '0.1.0',
+    description: 'Entry tags array',
+    example: '{{#each entry.tags}}{{this}}{{/each}}'
+  },
+
+  categories: {
+    since: '0.2.0',
+    description: 'Entry categories array',
+    example: '{{#each entry.categories}}{{this}}{{/each}}'
+  },
+
+  series: {
+    since: '0.2.0',
+    description: 'Entry series name',
+    example: '{{entry.series}}'
+  },
+
+  tag: {
+    since: '0.1.0',
+    description: 'Current tag name (on tag pages)',
+    example: '{{tag}}'
+  },
+
+  category: {
+    since: '0.2.0',
+    description: 'Current category name (on category pages)',
+    example: '{{category}}'
+  },
+
+  // === Features ===
+  toc: {
+    since: '0.2.0',
+    description: 'Table of contents tree from headings (H2-H4)',
+    example: '{{#if hasToc}}{{> _toc-tree items=toc}}{{/if}}'
+  },
+
+  hasToc: {
+    since: '0.3.0',
+    description: 'Boolean flag for TOC display',
+    example: '{{#if hasToc}}...{{/if}}'
+  },
+
+  relatedEntries: {
+    since: '0.2.0',
+    description: 'Tag-based related entries',
+    example: '{{#each relatedEntries}}{{title}}{{/each}}'
+  },
+
+  prevEntry: {
+    since: '0.2.0',
+    description: 'Previous entry in chronological order',
+    example: '{{#if prevEntry}}<a href="{{prevEntry.url}}">{{prevEntry.title}}</a>{{/if}}'
+  },
+
+  nextEntry: {
+    since: '0.2.0',
+    description: 'Next entry in chronological order',
+    example: '{{#if nextEntry}}<a href="{{nextEntry.url}}">{{nextEntry.title}}</a>{{/if}}'
+  }
 };
+
+// ============================================================================
+// UTILITY FUNCTIONS
+// ============================================================================
 
 function shouldIgnore(name) {
   return name.startsWith('.');
@@ -92,40 +199,15 @@ function compareVersions(a, b) {
   return 0;
 }
 
-/**
- * Check if content has specific features
- */
-function hasCategories(contentCache) {
-  for (const content of contentCache.values()) {
-    if (content.categories && content.categories.length > 0) {
-      return true;
-    }
-  }
-  return false;
-}
-
-function hasSeries(contentCache) {
-  for (const content of contentCache.values()) {
-    if (content.series) {
-      return true;
-    }
-  }
-  return false;
-}
-
-function hasContentWithHeadings(contentCache) {
-  for (const content of contentCache.values()) {
-    if (content.headings && content.headings.length > 0) {
-      return true;
-    }
-  }
-  return false;
-}
+// ============================================================================
+// THEME VALIDATION
+// ============================================================================
 
 /**
  * Validate theme requirements against THYPRESS runtime
+ * Simplified: Just check feature exists and version compatibility
  */
-export function validateThemeRequirements(themeMetadata, thypressVersion, contentCache, themePath) {
+export function validateThemeRequirements(themeMetadata, thypressVersion) {
   const warnings = [];
   const errors = [];
 
@@ -134,15 +216,17 @@ export function validateThemeRequirements(themeMetadata, thypressVersion, conten
   for (const required of requires) {
     const feature = THYPRESS_FEATURES[required];
 
+    // ERROR: Unknown feature
     if (!feature) {
-      warnings.push({
+      errors.push({
         type: 'unknown-feature',
         feature: required,
-        message: `Theme requires unknown feature '${required}' - may not work correctly`
+        message: `Unknown feature '${required}' - check spelling or update THYPRESS`
       });
       continue;
     }
 
+    // ERROR: Version mismatch
     if (compareVersions(thypressVersion, feature.since) < 0) {
       errors.push({
         type: 'version-mismatch',
@@ -152,32 +236,6 @@ export function validateThemeRequirements(themeMetadata, thypressVersion, conten
         currentVersion: thypressVersion
       });
       continue;
-    }
-
-    if (feature.type === 'feature' && contentCache) {
-      if (required === 'categories' && !hasCategories(contentCache)) {
-        warnings.push({
-          type: 'content-missing',
-          feature: required,
-          message: `Theme uses categories, but no content has categories defined`
-        });
-      }
-
-      if (required === 'series' && !hasSeries(contentCache)) {
-        warnings.push({
-          type: 'content-missing',
-          feature: required,
-          message: `Theme uses series, but no content has series defined`
-        });
-      }
-
-      if (required === 'toc' && !hasContentWithHeadings(contentCache)) {
-        warnings.push({
-          type: 'content-missing',
-          feature: required,
-          message: `Theme uses table of contents, but no content has headings`
-        });
-      }
     }
   }
 
@@ -270,9 +328,7 @@ export function validateTheme(themePath, templatesCache, themeName, themeMetadat
   if (themeMetadata.requires && themeMetadata.requires.length > 0) {
     const featureValidation = validateThemeRequirements(
       themeMetadata,
-      thypressVersion,
-      null,
-      themePath
+      thypressVersion
     );
 
     errors.push(...featureValidation.errors.map(e => e.message));
@@ -284,6 +340,29 @@ export function validateTheme(themePath, templatesCache, themeName, themeMetadat
     errors,
     warnings
   };
+}
+
+// ============================================================================
+// THEME DISCOVERY
+// ============================================================================
+
+/**
+ * Auto-detect preview image in theme directory
+ * Looks for preview.png, preview.jpg, preview.webp in order
+ * @param {string} themeDir - Theme directory path
+ * @returns {string|null} Preview filename or null
+ */
+function detectPreviewImage(themeDir) {
+  const extensions = ['png', 'jpg', 'jpeg', 'webp'];
+
+  for (const ext of extensions) {
+    const previewPath = path.join(themeDir, `preview.${ext}`);
+    if (fs.existsSync(previewPath)) {
+      return `preview.${ext}`;
+    }
+  }
+
+  return null;
 }
 
 /**
@@ -302,7 +381,8 @@ export function scanAvailableThemes() {
     author: 'THYPRESS',
     embedded: true,
     valid: true,
-    active: false
+    active: false,
+    preview: null
   });
 
   if (!fs.existsSync(templatesDir)) {
@@ -327,7 +407,8 @@ export function scanAvailableThemes() {
       author: 'Unknown',
       embedded: false,
       valid: true,
-      active: false
+      active: false,
+      preview: null
     };
 
     // Priority 1: theme.json
@@ -342,7 +423,7 @@ export function scanAvailableThemes() {
           author: themeData.author || 'Unknown',
           license: themeData.license,
           homepage: themeData.homepage,
-          preview: themeData.preview,
+          preview: themeData.preview || null,
           tags: themeData.tags || [],
           requires: themeData.requires || [],
           embedded: false,
@@ -369,7 +450,7 @@ export function scanAvailableThemes() {
             author: frontMatter.author || 'Unknown',
             license: frontMatter.license,
             homepage: frontMatter.homepage,
-            preview: frontMatter.preview,
+            preview: frontMatter.preview || null,
             tags: frontMatter.tags || [],
             requires: frontMatter.requires || [],
             embedded: false,
@@ -379,6 +460,14 @@ export function scanAvailableThemes() {
         }
       } catch (error) {
         // Silently ignore
+      }
+    }
+
+    // Priority 3: Auto-detect preview image if not specified in metadata
+    if (!metadata.preview) {
+      const autoPreview = detectPreviewImage(themeDir);
+      if (autoPreview) {
+        metadata.preview = autoPreview;
       }
     }
 
@@ -414,7 +503,11 @@ export function setActiveTheme(themeId) {
   return { success: true, theme: themeId };
 }
 
-// FIX 2: Module-level flag for dev mode logging
+// ============================================================================
+// EMBEDDED TEMPLATES LOADER
+// ============================================================================
+
+// Module-level flag for dev mode logging
 let hasLoggedDevMode = false;
 
 function canWriteToSrcDir() {
@@ -490,9 +583,8 @@ function loadTemplatesFromDisk(dir) {
 export async function loadEmbeddedTemplates() {
   const isDev = process.env.NODE_ENV !== 'production' && process.env.THYPRESS_USE_DISK_TEMPLATES !== 'false';
   const templatesDir = path.join(__dirname, '../templates/.default');
-  const embeddedPath = path.join(__dirname, 'embedded-templates.js');
 
-  // FIX 2: Dev mode with quiet logging
+  // Dev mode with instant refresh
   if (isDev && fs.existsSync(templatesDir)) {
     try {
       if (!hasLoggedDevMode) {
@@ -505,55 +597,126 @@ export async function loadEmbeddedTemplates() {
     }
   }
 
-  // Production: Use embedded templates
-  if (fs.existsSync(embeddedPath)) {
-    if (isEmbeddedTemplatesStale(embeddedPath)) {
-      console.log(warning('Embedded templates may be outdated'));
-      console.log(dim('  Run: bun src/embed-templates.js'));
-    }
-
-    const { EMBEDDED_TEMPLATES } = await import('./embedded-templates.js');
-    return EMBEDDED_TEMPLATES;
+  // Production/Compiled: Use static import (works in exe)
+  if (STATIC_EMBEDDED_TEMPLATES && Object.keys(STATIC_EMBEDDED_TEMPLATES).length > 0) {
+    return STATIC_EMBEDDED_TEMPLATES;
   }
 
-  // Auto-generate if missing
-  const autoGenerateDisabled = process.env.DISABLE_AUTOGEN_TEMPLATE === 'true';
-
-  if (autoGenerateDisabled) {
-    throw new Error(
-      'embedded-templates.js not found and auto-generation is disabled.\n' +
-      'Please pre-generate templates during build:\n' +
-      '  bun src/embed-templates.js'
-    );
-  }
-
-  if (!canWriteToSrcDir()) {
-    throw new Error(
-      'embedded-templates.js not found and cannot write to src/ directory.\n' +
-      'Please pre-generate templates during build:\n' +
-      '  bun src/embed-templates.js'
-    );
-  }
-
-  console.log(info('Embedded templates not found, generating...'));
-
-  try {
-    const embedScriptPath = path.join(__dirname, 'embed-templates.js');
-    await import(embedScriptPath);
-    console.log(success('Embedded templates generated'));
-  } catch (genError) {
-    throw new Error(
-      `Failed to generate embedded templates: ${genError.message}\n` +
-      'Try running manually: bun src/embed-templates.js'
-    );
-  }
-
-  const { EMBEDDED_TEMPLATES } = await import('./embedded-templates.js');
-  return EMBEDDED_TEMPLATES;
+  // Fallback: This should never happen if prebuild ran correctly
+  throw new Error(
+    'Embedded templates not found.\n' +
+    'This executable was built incorrectly.\n' +
+    'Rebuild with: bun run build:exe'
+  );
 }
+
+// ============================================================================
+// PHASE 2A: DYNAMIC SINGLE-FILE THEME DETECTION
+// ============================================================================
+
+/**
+ * Detect which page types a single-file theme can handle
+ * Uses multiple detection layers to infer capabilities
+ *
+ * @param {string} templateSource - Raw template HTML source
+ * @param {object} metadata - Theme metadata (from theme.json or front-matter)
+ * @returns {Set<string>} - Set of page types this template can handle
+ */
+function detectSingleFilePageTypes(templateSource, metadata = {}) {
+  const detected = new Set();
+
+  // ========================================================================
+  // LAYER 1: Explicit declaration in metadata.handles
+  // ========================================================================
+  if (metadata.handles && Array.isArray(metadata.handles)) {
+    metadata.handles.forEach(type => detected.add(type));
+    console.log(dim(`Explicit page types from metadata: ${Array.from(detected).join(', ')}`));
+    return detected;
+  }
+
+  // ========================================================================
+  // LAYER 2: Handlebars inline partials
+  // Look for {{#*inline "entry"}}, {{#*inline "index"}}, etc.
+  // ========================================================================
+  const inlinePartialRegex = /\{\{#\*inline\s+"([^"]+)"\}\}/g;
+  let match;
+  while ((match = inlinePartialRegex.exec(templateSource)) !== null) {
+    const partialName = match[1];
+    if (['entry', 'index', 'tag', 'category', 'series', '404'].includes(partialName)) {
+      detected.add(partialName);
+    }
+  }
+  if (detected.size > 0) {
+    console.log(dim(`Detected inline partials: ${Array.from(detected).join(', ')}`));
+  }
+
+  // ========================================================================
+  // LAYER 3: Conditional pageType checks
+  // Look for {{#if (eq pageType "entry")}} patterns
+  // ========================================================================
+  const conditionalRegex = /\(eq\s+pageType\s+['"]([^'"]+)['"]\)/g;
+  while ((match = conditionalRegex.exec(templateSource)) !== null) {
+    const pageType = match[1];
+    if (['entry', 'index', 'tag', 'category', 'series', '404'].includes(pageType)) {
+      detected.add(pageType);
+    }
+  }
+  if (detected.size > 0) {
+    console.log(dim(`Detected conditional checks: ${Array.from(detected).join(', ')}`));
+  }
+
+  // ========================================================================
+  // LAYER 4: Implicit detection from template patterns
+  // ========================================================================
+  // Check for {{entry}} usage
+  if (templateSource.includes('{{#if entry}}') || templateSource.match(/\{\{entry\./)) {
+    detected.add('entry');
+  }
+
+  // Check for {{entries}} usage (indicates list pages)
+  if (templateSource.includes('{{#each entries}}') || templateSource.includes('{{#if entries}}')) {
+    detected.add('index');
+    detected.add('tag');
+    detected.add('category');
+    detected.add('series');
+  }
+
+  // Specific taxonomy detection
+  if (templateSource.includes('{{#if tag}}') || templateSource.match(/\{\{tag\}\}/)) {
+    detected.add('tag');
+  }
+  if (templateSource.includes('{{#if category}}') || templateSource.match(/\{\{category\}\}/)) {
+    detected.add('category');
+  }
+  if (templateSource.includes('{{#if series}}') || templateSource.match(/\{\{series\}\}/)) {
+    detected.add('series');
+  }
+
+  // ========================================================================
+  // LAYER 5: Default fallback if nothing detected
+  // ========================================================================
+  if (detected.size === 0) {
+    detected.add('entry');
+    detected.add('index');
+    console.log(dim('No explicit detection - defaulting to entry + index'));
+  } else {
+    console.log(dim(`Implicit detection found: ${Array.from(detected).join(', ')}`));
+  }
+
+  return detected;
+}
+
+// ============================================================================
+// THEME LOADER
+// ============================================================================
 
 /**
  * Load theme with support for single-file themes and strict isolation
+ *
+ * PHASE 2B: Dynamic single-file theme detection
+ * - Replaces hardcoded registration with intelligent detection
+ * - Analyzes template content to determine which page types it can handle
+ * - Uses detectSingleFilePageTypes() for multi-layer inference
  */
 export async function loadTheme(themeName = null, siteConfig = {}) {
   const templatesDir = path.join(process.cwd(), 'templates');
@@ -571,15 +734,6 @@ export async function loadTheme(themeName = null, siteConfig = {}) {
           const fullPath = path.join(templatesDir, f);
           return !shouldIgnore(f) && fs.statSync(fullPath).isDirectory();
         });
-
-      // TODO: improve automatic theme sorting
-      /*if (themes.length === 1) {
-        activeTheme = themes[0];
-      } else*/
-      // if (themes.includes('my-press')) {
-      //   activeTheme = 'my-press';
-      // }
-      // Don't auto-pick other themes - let it fall back to .default
     }
   }
 
@@ -592,32 +746,48 @@ export async function loadTheme(themeName = null, siteConfig = {}) {
     }
   }
 
+  // ========================================================================
   // Load embedded templates (base layer unless strictThemeIsolation)
+  // ========================================================================
   const EMBEDDED_TEMPLATES = await loadEmbeddedTemplates();
 
-  // Strict isolation mode: skip embedded loading if user theme specified
+  const intentMode = process.env.THYPRESS_INTENT_MODE || null;
   const strictIsolation = siteConfig.strictThemeIsolation === true;
 
   if (!strictIsolation || !activeTheme || activeTheme === '.default') {
+    console.log(info('Loading embedded default templates as base layer...'));
+
+    let templatesLoaded = 0;
+
     for (const [name, content] of Object.entries(EMBEDDED_TEMPLATES)) {
       if (name.endsWith('.html')) {
         const templateName = name.replace('.html', '');
 
         if (name.startsWith('_')) {
           Handlebars.registerPartial(templateName, content);
+          console.log(dim(`Registered partial: ${templateName}`));
         } else {
           const compiled = compileTemplate(templateName, content);
           if (compiled) {
             templatesCache.set(templateName, compiled);
+            templatesLoaded++;
           }
         }
       }
+    }
+
+    console.log(success(`Loaded ${templatesLoaded} embedded templates`));
+
+    if (intentMode === 'viewer' && !activeTheme) {
+      console.log(dim('Using embedded theme for quick viewing'));
     }
   }
 
   let themePath = null;
 
+  // ========================================================================
   // Load user theme if specified
+  // ========================================================================
   if (activeTheme && activeTheme !== '.default') {
     themePath = path.join(templatesDir, activeTheme);
 
@@ -631,9 +801,9 @@ export async function loadTheme(themeName = null, siteConfig = {}) {
       if (fs.existsSync(themeJsonPath)) {
         try {
           themeMetadata = JSON.parse(fs.readFileSync(themeJsonPath, 'utf-8'));
-          console.log(dim(`  Loaded metadata from theme.json`));
+          console.log(dim(`Loaded metadata from theme.json`));
         } catch (error) {
-          console.log(warning(`  Could not parse theme.json: ${error.message}`));
+          console.log(warning(`Could not parse theme.json: ${error.message}`));
         }
       } else if (fs.existsSync(indexHtmlPath)) {
         try {
@@ -642,7 +812,7 @@ export async function loadTheme(themeName = null, siteConfig = {}) {
 
           if (Object.keys(frontMatter).length > 0 && (frontMatter.name || frontMatter.version || frontMatter.requires)) {
             themeMetadata = frontMatter;
-            console.log(dim(`  Loaded metadata from index.html front-matter`));
+            console.log(dim(`Loaded metadata from index.html front-matter`));
           }
         } catch (error) {
           // Silently ignore
@@ -667,7 +837,7 @@ export async function loadTheme(themeName = null, siteConfig = {}) {
               const content = fs.readFileSync(fullPath, 'utf-8');
               const partialName = path.basename(relPath, '.html').replace(/\\/g, '/');
               Handlebars.registerPartial(partialName, content);
-              console.log(dim(`  Registered partial (folder): ${partialName}`));
+              console.log(dim(`Registered partial (folder): ${partialName}`));
             }
           }
         }
@@ -675,7 +845,9 @@ export async function loadTheme(themeName = null, siteConfig = {}) {
         scanPartialsFolder(partialsDir);
       }
 
+      // ======================================================================
       // Load theme files recursively
+      // ======================================================================
       function loadThemeFiles(dir, relativePath = '') {
         const entries = fs.readdirSync(dir, { withFileTypes: true });
 
@@ -697,14 +869,25 @@ export async function loadTheme(themeName = null, siteConfig = {}) {
 
               if (entry.name.startsWith('_')) {
                 Handlebars.registerPartial(templateName, content);
-                console.log(dim(`  Registered partial (underscore): ${templateName}`));
+                console.log(dim(`Registered partial (underscore): ${templateName}`));
               } else {
                 const { data: frontMatter, content: templateContent } = matter(content);
 
                 if (frontMatter.partial === true) {
                   Handlebars.registerPartial(templateName, templateContent);
-                  console.log(dim(`  Registered partial (front matter): ${templateName}`));
+                  console.log(dim(`Registered partial (front matter): ${templateName}`));
                 } else {
+                  // Validate template syntax before compiling
+                  if (!validateTemplate(templateContent, relPath)) {
+                    const siteConfig = getSiteConfig();
+                    if (siteConfig.strictTemplateValidation !== false) {
+                      console.error(errorMsg(`Exiting due to template validation failure`));
+                      process.exit(1);
+                    }
+                    console.log(warning(`Skipping broken template: ${relPath}`));
+                    continue;
+                  }
+
                   const compiled = compileTemplate(templateName, templateContent);
                   if (compiled) {
                     templatesCache.set(templateName, compiled);
@@ -729,38 +912,61 @@ export async function loadTheme(themeName = null, siteConfig = {}) {
 
       loadThemeFiles(themePath);
 
-      // FIX 1: Detect single-file theme
+      // ======================================================================
+      // PHASE 2B: Dynamic single-file theme detection
+      // ======================================================================
       let isSingleFile = false;
 
       // Method 1: Explicit declaration in metadata
       if (themeMetadata.singleFile === true) {
         isSingleFile = true;
-        console.log(info('  Single-file theme (explicit)'));
+        console.log(info('Single-file theme (explicit)'));
       }
       // Method 2: Auto-detect (only index.html exists at root)
       else if (templatesCache.has('index')) {
         const htmlFiles = fs.readdirSync(themePath)
           .filter(f => {
             if (!f.endsWith('.html')) return false;
-            if (f.startsWith('_')) return false;  // Exclude partials
-            if (f === '404.html') return false;    // Exclude 404
+            if (f.startsWith('_')) return false;
+            if (f === '404.html') return false;
             return true;
           });
 
         if (htmlFiles.length === 1 && htmlFiles[0] === 'index.html') {
           isSingleFile = true;
-          console.log(info('  Single-file theme (auto-detected)'));
+          console.log(info('Single-file theme (auto-detected)'));
         }
       }
 
-      // Register index template for all page types
+      // ======================================================================
+      // PHASE 2B: Replace hardcoded registration with dynamic detection
+      // ======================================================================
       if (isSingleFile) {
         const indexTpl = templatesCache.get('index');
         if (indexTpl) {
-          ['entry', 'tag', 'category', 'series'].forEach(type => {
+          // Read the raw template source for analysis
+          const indexHtmlPath = path.join(themePath, 'index.html');
+          let indexSource = '';
+          if (fs.existsSync(indexHtmlPath)) {
+            indexSource = fs.readFileSync(indexHtmlPath, 'utf-8');
+          }
+
+          // Use multi-layer detection to determine capabilities
+          const detectedTypes = detectSingleFilePageTypes(indexSource, themeMetadata);
+
+          // Register index template for all detected page types
+          detectedTypes.forEach(type => {
             templatesCache.set(type, indexTpl);
           });
-          console.log(dim('  Registered index.html for all page types'));
+
+          console.log(success(`Single-file theme handles: ${Array.from(detectedTypes).join(', ')}`));
+
+          // Log which types will use embedded fallbacks
+          const allTypes = ['entry', 'index', 'tag', 'category', 'series', '404'];
+          const unhandled = allTypes.filter(t => !detectedTypes.has(t));
+          if (unhandled.length > 0) {
+            console.log(dim(`Using embedded defaults for: ${unhandled.join(', ')}`));
+          }
         }
       }
     }
@@ -777,6 +983,10 @@ export async function loadTheme(themeName = null, siteConfig = {}) {
 
   return { templatesCache, themeAssets, activeTheme, validation, themeMetadata };
 }
+
+// ============================================================================
+// TEMPLATE SELECTION
+// ============================================================================
 
 /**
  * Select appropriate template for entry

@@ -8,7 +8,17 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  {{> _head
+<!--
+So pageTitle is a partial parameter, not a context variable. These are different things:
+
+Context variables: Come from buildTemplateContext() - like config.title, entry.title
+Partial parameters: Explicitly passed when calling a partial - like pageTitle="..."
+
+These should still work fine because they're Handlebars syntax, not our context.
+The partial parameters are override mechanisms - they let you customize the partial's behavior per invocation.
+They're totally separate from our context system and still work exactly as before.
+-->
+    {{> _head
     pageTitle=pageTitle
     pageTitlePrefix=pageTitlePrefix
     pageTitleValue=pageTitleValue
@@ -23,10 +33,12 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
   <main>
     {{#if hasPagesList}}
-      {{> @partial-block}}
+{{! DO NOT FORMAT: Must remain flush-left to prevent whitespace injection in code blocks. }}
+{{> @partial-block}}
     {{else}}
       <div id="pages-list">
-        {{> @partial-block}}
+{{! DO NOT FORMAT: Must remain flush-left to prevent whitespace injection in code blocks. }}
+{{> @partial-block}}
       </div>
     {{/if}}
 
@@ -35,9 +47,7 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
       <p><a href="/rss.xml">RSS</a> | <a href="/sitemap.xml">Sitemap</a></p>
     {{/if}}
 
-    <span style="display: block; font-weight: bold; font-size: .75rem; text-align: right;">
-        Powered by <a title="Turn text files into instant websites. Drag, drop, done." href="http://thypress.org">THYPRESS</a>
-    </span>
+    <small><b>Powered by <a title="Turn text files into instant websites for FREE. Drag, drop, done." href="http://thypress.org">THYPRESS</a></b></small>
   </main>
 
   {{> _sidebar-toc}}

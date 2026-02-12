@@ -17,19 +17,19 @@ requires:
 
 <title>
   {{#if entry}}
-    {{title}} - {{siteTitle}}
+    {{title}} - {{config.title}}
   {{else if tag}}
-    Tag: {{tag}} - {{siteTitle}}
+    Tag: {{tag}} - {{config.title}}
   {{else if category}}
-    Category: {{category}} - {{siteTitle}}
+    Category: {{category}} - {{config.title}}
   {{else if entry.series}}
-    Series: {{entry.series}} - {{siteTitle}}
+    Series: {{entry.series}} - {{config.title}}
   {{else}}
-    {{siteTitle}}
+    {{config.title}}
   {{/if}}
 </title>
 
-<meta name="description" content="{{#if description}}{{description}}{{else}}{{siteDescription}}{{/if}}">
+<meta name="description" content="{{#if description}}{{description}}{{else}}{{config.description}}{{/if}}">
 
 <style>
 /* =========================
@@ -308,8 +308,8 @@ body > footer a:hover {
   <div>
     <article>
       <header>
-        <h2>{{title}}</h2>
-        {{#if description}}<p>{{description}}</p>{{/if}}
+        <!--<h2>{{entry.title}}</h2>
+        {{#if entry.description}}<p>{{entry.description}}</p>{{/if}}-->
         <small>
           {{#if entry.author}}By {{entry.author}} · {{/if}}
           {{entry.createdAt}}
@@ -360,9 +360,9 @@ body > footer a:hover {
   <div>
     <figure></figure>
 
-    <h1>{{siteTitle}}</h1>
+    <h1>{{config.title}}</h1>
 
-    <p aria-description>{{siteDescription}}</p>
+    <p aria-description>{{config.description}}</p>
 
     {{#if tag}}<p aria-description>Tag: {{tag}}</p>{{/if}}
     {{#if category}}<p aria-description>Category: {{category}}</p>{{/if}}
@@ -394,7 +394,8 @@ body > footer a:hover {
 </main>
 
 <footer>
-  <p>&copy; {{siteTitle}} • <a href="/rss.xml">RSS</a> • <a href="/sitemap.xml">Sitemap</a></p>
+  <p>&copy; {{config.title}} • <a href="/rss.xml">RSS</a> • <a href="/sitemap.xml">Sitemap</a></p>
+  <small><b>Powered by <a title="Turn text files into instant websites for FREE. Drag, drop, done." href="http://thypress.org">THYPRESS</a></b></small>
 </footer>
 </body>
 </html>

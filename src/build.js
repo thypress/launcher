@@ -1,45 +1,64 @@
-// Copyright (C) 2026 THYPRESS
-
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as
-// published by the Free Software Foundation, either version 3 of the
-// License, or (at your option) any later version.
-
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Affero General Public License for more details.
-
-// You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see <https://www.gnu.org>.
-
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import { fileURLToPath } from 'url';
 import Handlebars from 'handlebars';
 import matter from 'gray-matter';
 import crypto from 'crypto';
+import zlib from 'zlib';
+import { promisify } from 'util';
+
+// ============================================================================
+// CLEAN IMPORTS - Direct from source modules (no re-exports)
+// ============================================================================
+
+// Rendering functions from renderer.js
 import {
-  loadAllContent,
-  loadTheme,
   renderEntryList,
   renderEntry,
   renderTagPage,
   renderCategoryPage,
   renderSeriesPage,
+  generateRSS,
+  generateSitemap,
+  generateSearchIndex
+} from './renderer.js';
+
+// Content processing from content-processor.js
+import {
+  loadAllContent,
+  optimizeImage
+} from './content-processor.js';
+
+// Theme functions from theme-system.js
+import {
+  loadTheme,
+  loadEmbeddedTemplates
+} from './theme-system.js';
+
+// Utilities from taxonomy.js
+import {
   getAllTags,
   getAllCategories,
   getAllSeries,
-  generateRSS,
-  generateSitemap,
-  generateSearchIndex,
-  optimizeImage,
   getSiteConfig,
   getEntriesSorted,
   slugify
-} from './renderer.js';
+} from './utils/taxonomy.js';
+
+// Color utilities
 import { success, error as errorMsg, warning, info, dim, bright } from './utils/colors.js';
+
+// Template context builder
+import { buildTemplateContext } from './utils/template-context.js';
+
+// ============================================================================
+
+const gzip = promisify(zlib.gzip);
+const brotliCompress = promisify(zlib.brotliCompress);
+
+// Disable live reload injection during build
+// (Architecture Note: This is a backup safety. The CLI sets THYPRESS_MODE='static')
+process.env.THYPRESS_BUILD_MODE = 'true';
 
 const BUILD_DIR = path.join(process.cwd(), 'build');
 const CACHE_DIR = path.join(process.cwd(), '.cache');
@@ -258,8 +277,15 @@ async function optimizeImagesFromContent(imageReferences, outputBaseDir, showPro
     }
   }
 
+  // FILTER: Only process images that actually exist
   const imagesToOptimize = Array.from(uniqueImages.values())
-    .filter(img => fs.existsSync(img.resolvedPath));
+    .filter(img => {
+      if (!fs.existsSync(img.resolvedPath)) {
+        console.log(warning(`Skipping broken image: ${img.resolvedPath}`));
+        return false;
+      }
+      return true;
+    });
 
   if (imagesToOptimize.length === 0) {
     return 0;
@@ -272,6 +298,9 @@ async function optimizeImagesFromContent(imageReferences, outputBaseDir, showPro
 
   const needsUpdate = [];
   for (const img of imagesToOptimize) {
+    // If outputBaseDir is BUILD_DIR, we construct the path relative to build root
+    // If it's CACHE_DIR, same logic applies
+    // The img.outputPath is typically like 'images/my-pic.jpg' or 'posts/my-pic.jpg'
     const outputDir = path.join(outputBaseDir, path.dirname(img.outputPath));
     if (needsOptimization(img.resolvedPath, outputDir, img.basename, img.hash)) {
       needsUpdate.push(img);
@@ -373,7 +402,7 @@ function cleanupOrphanedImages(imageReferences, cacheDir) {
   return removed;
 }
 
-function buildEntries(contentCache, templates, navigation, siteConfig, mode) {
+function buildEntries(contentCache, templates, navigation, siteConfig, mode, themeMetadata = {}) {
   let count = 0;
 
   for (const [slug, entry] of contentCache) {
@@ -382,7 +411,7 @@ function buildEntries(contentCache, templates, navigation, siteConfig, mode) {
     const outputPath = path.join(BUILD_DIR, entry.url.substring(1), 'index.html');
     fs.mkdirSync(path.dirname(outputPath), { recursive: true });
 
-    const html = renderEntry(entry, slug, templates, navigation, siteConfig, contentCache);
+    const html = renderEntry(entry, slug, templates, navigation, siteConfig, contentCache, themeMetadata);
     fs.writeFileSync(outputPath, html);
     count++;
   }
@@ -390,11 +419,11 @@ function buildEntries(contentCache, templates, navigation, siteConfig, mode) {
   console.log(success(`Generated ${count} entry pages`));
 }
 
-function buildIndexPages(contentCache, templates, navigation, siteConfig) {
+function buildIndexPages(contentCache, templates, navigation, siteConfig, themeMetadata = {}) {
   const POSTS_PER_PAGE = 10;
   const totalPages = Math.ceil(contentCache.size / POSTS_PER_PAGE);
 
-  const indexHtml = renderEntryList(contentCache, 1, templates, navigation, siteConfig);
+  const indexHtml = renderEntryList(contentCache, 1, templates, navigation, siteConfig, themeMetadata);
   fs.writeFileSync(path.join(BUILD_DIR, 'index.html'), indexHtml);
   console.log(success(`Generated index.html`));
 
@@ -402,7 +431,7 @@ function buildIndexPages(contentCache, templates, navigation, siteConfig) {
     const pageDir = path.join(BUILD_DIR, 'page', page.toString());
     fs.mkdirSync(pageDir, { recursive: true });
 
-    const pageHtml = renderEntryList(contentCache, page, templates, navigation, siteConfig);
+    const pageHtml = renderEntryList(contentCache, page, templates, navigation, siteConfig, themeMetadata);
     fs.writeFileSync(path.join(pageDir, 'index.html'), pageHtml);
   }
 
@@ -411,7 +440,7 @@ function buildIndexPages(contentCache, templates, navigation, siteConfig) {
   }
 }
 
-function buildTagPages(contentCache, templates, navigation, siteConfig) {
+function buildTagPages(contentCache, templates, navigation, siteConfig, themeMetadata = {}) {
   const tags = getAllTags(contentCache);
 
   if (tags.length === 0) {
@@ -422,7 +451,7 @@ function buildTagPages(contentCache, templates, navigation, siteConfig) {
     const tagDir = path.join(BUILD_DIR, 'tag', tag);
     fs.mkdirSync(tagDir, { recursive: true });
 
-    const html = renderTagPage(contentCache, tag, templates, navigation);
+    const html = renderTagPage(contentCache, tag, templates, navigation, siteConfig, themeMetadata);
     fs.writeFileSync(path.join(tagDir, 'index.html'), html);
 
     // FEATURE 3: RSS per tag
@@ -437,7 +466,7 @@ function buildTagPages(contentCache, templates, navigation, siteConfig) {
 }
 
 // FEATURE 5: Build category pages
-function buildCategoryPages(contentCache, templates, navigation, siteConfig) {
+function buildCategoryPages(contentCache, templates, navigation, siteConfig, themeMetadata = {}) {
   const categories = getAllCategories(contentCache);
 
   if (categories.length === 0) {
@@ -448,7 +477,7 @@ function buildCategoryPages(contentCache, templates, navigation, siteConfig) {
     const categoryDir = path.join(BUILD_DIR, 'category', category);
     fs.mkdirSync(categoryDir, { recursive: true });
 
-    const html = renderCategoryPage(contentCache, category, templates, navigation);
+    const html = renderCategoryPage(contentCache, category, templates, navigation, siteConfig, themeMetadata);
     fs.writeFileSync(path.join(categoryDir, 'index.html'), html);
 
     const categoryRss = generateRSS(
@@ -462,7 +491,7 @@ function buildCategoryPages(contentCache, templates, navigation, siteConfig) {
 }
 
 // FEATURE 5: Build series pages
-function buildSeriesPages(contentCache, templates, navigation, siteConfig) {
+function buildSeriesPages(contentCache, templates, navigation, siteConfig, themeMetadata = {}) {
   const series = getAllSeries(contentCache);
 
   if (series.length === 0) {
@@ -474,7 +503,7 @@ function buildSeriesPages(contentCache, templates, navigation, siteConfig) {
     const seriesDir = path.join(BUILD_DIR, 'series', seriesSlug);
     fs.mkdirSync(seriesDir, { recursive: true });
 
-    const html = renderSeriesPage(contentCache, seriesName, templates, navigation);
+    const html = renderSeriesPage(contentCache, seriesName, templates, navigation, siteConfig, themeMetadata);
     fs.writeFileSync(path.join(seriesDir, 'index.html'), html);
 
     const seriesRss = generateRSS(
@@ -586,7 +615,12 @@ function build404Page(themeAssets) {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>404 - Page Not Found</title>
-  <link rel="stylesheet" href="/assets/style.css">
+  <style>
+    body { font-family: system-ui, sans-serif; padding: 2rem; text-align: center; }
+    h1 { margin-bottom: 1rem; }
+    a { color: #0070f3; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+  </style>
 </head>
 <body>
   <main>
@@ -624,11 +658,9 @@ function parseRedirectRules(redirectsData) {
     let to, statusCode;
 
     if (typeof toData === 'string') {
-      // Simple format: { "/old": "/new" }
       to = toData;
       statusCode = DEFAULT_STATUS_CODE;
     } else if (typeof toData === 'object' && toData.to) {
-      // Advanced format: { "/old": { "to": "/new", "statusCode": 302 } }
       to = toData.to;
       statusCode = toData.statusCode || DEFAULT_STATUS_CODE;
     } else {
@@ -636,8 +668,33 @@ function parseRedirectRules(redirectsData) {
       continue;
     }
 
-    // Validate "to" path
-    if (!to.startsWith('/') && !to.startsWith('http://') && !to.startsWith('https://')) {
+    // SECURITY: Validate external redirects
+    if (to.startsWith('http://') || to.startsWith('https://')) {
+      const siteConfig = getSiteConfig();
+
+      if (siteConfig.allowExternalRedirects !== true) {
+        errors.push(`External redirect not allowed: "${to}" (set allowExternalRedirects: true in config.json to enable)`);
+        continue;
+      }
+
+      // Optional: validate against allowlist
+      if (siteConfig.allowedRedirectDomains && Array.isArray(siteConfig.allowedRedirectDomains)) {
+        try {
+          const url = new URL(to);
+          const allowed = siteConfig.allowedRedirectDomains.some(domain =>
+            url.hostname === domain || url.hostname.endsWith(`.${domain}`)
+          );
+
+          if (!allowed) {
+            errors.push(`External redirect to "${url.hostname}" not in allowedRedirectDomains`);
+            continue;
+          }
+        } catch (urlError) {
+          errors.push(`Invalid external URL: "${to}"`);
+          continue;
+        }
+      }
+    } else if (!to.startsWith('/')) {
       errors.push(`Invalid "to" path "${to}": must start with / or be absolute URL`);
       continue;
     }
@@ -738,7 +795,7 @@ function buildRedirects() {
     // Report validation errors
     if (errors.length > 0) {
       console.error(errorMsg('Redirect validation errors:'));
-      errors.forEach(err => console.log(dim(`  • ${err}`)));
+      errors.forEach(err => console.log(dim(`• ${err}`)));
       process.exit(1);
     }
 
@@ -832,11 +889,11 @@ function buildRedirects() {
     // ========================================
 
     console.log(success(`Generated redirect rules (${rules.length} redirects)`));
-    console.log(dim(`  Smart hosts: _redirects (Netlify/Cloudflare), vercel.json (Vercel)`));
-    console.log(dim(`  Dumb hosts: ${fallbackCount} fallback HTML files`));
+    console.log(dim(`Smart hosts: _redirects (Netlify/Cloudflare), vercel.json (Vercel)`));
+    console.log(dim(`Dumb hosts: ${fallbackCount} fallback HTML files`));
 
     if (skippedExternal.length > 0) {
-      console.log(warning(`  External redirects (no fallback): ${skippedExternal.length}`));
+      console.log(warning(`External redirects (no fallback): ${skippedExternal.length}`));
     }
 
     // Status code breakdown
@@ -845,7 +902,7 @@ function buildRedirects() {
       return acc;
     }, {});
 
-    console.log(dim(`  Status codes: ${Object.entries(statusBreakdown).map(([code, count]) => `${count}×${code}`).join(', ')}`));
+    console.log(dim(`Status codes: ${Object.entries(statusBreakdown).map(([code, count]) => `${count}×${code}`).join(', ')}`));
 
   } catch (error) {
     console.error(errorMsg(`Failed to generate redirects: ${error.message}`));
@@ -908,14 +965,38 @@ function copyStaticFilesFromContent(contentRoot) {
   }
 }
 
+async function compressDirectory(dir) {
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+
+    for (const entry of entries) {
+        const fullPath = path.join(dir, entry.name);
+
+        if (entry.isDirectory()) {
+            await compressDirectory(fullPath);
+        } else if (/\.(html|css|js|xml|json|txt|svg)$/i.test(entry.name)) {
+            const content = fs.readFileSync(fullPath);
+
+            // Gzip
+            const gzipped = await gzip(content);
+            fs.writeFileSync(`${fullPath}.gz`, gzipped);
+
+            // Brotli
+            const brotlied = await brotliCompress(content);
+            fs.writeFileSync(`${fullPath}.br`, brotlied);
+        }
+    }
+}
+
 export async function build() {
   console.log(bright('Building static site...\n'));
 
+  // Use the robust content loader
   const { contentCache, navigation, imageReferences, brokenImages, mode, contentRoot } = loadAllContent();
   const siteConfig = getSiteConfig();
+
   // Validate theme before building
   const themeResult = await loadTheme(siteConfig.theme);
-  const { templatesCache, themeAssets, activeTheme, validation } = themeResult;
+  const { templatesCache, themeAssets, activeTheme, validation, themeMetadata } = themeResult;
 
   // Check validation (skip for .default)
   if (activeTheme !== '.default' && validation && !validation.valid) {
@@ -927,7 +1008,7 @@ export async function build() {
     if (validation.errors.length > 0) {
       console.log(errorMsg('Errors:'));
       validation.errors.forEach(err => {
-        console.log(dim(`  • ${err}`));
+        console.log(dim(`• ${err}`));
       });
       console.log('');
     }
@@ -936,15 +1017,15 @@ export async function build() {
     if (validation.warnings.length > 0) {
       console.log(warning('Warnings:'));
       validation.warnings.forEach(warn => {
-        console.log(dim(`  • ${warn}`));
+        console.log(dim(`• ${warn}`));
       });
       console.log('');
     }
 
     console.log(info('Fix:'));
-    console.log(dim('  1. Fix the errors listed above'));
-    console.log(dim('  2. Set forceTheme: true in config.json to build anyway (not recommended)'));
-    console.log(dim('  3. Switch to a different theme in config.json'));
+    console.log(dim('1. Fix the errors listed above'));
+    console.log(dim('2. Set forceTheme: true in config.json to build anyway (not recommended)'));
+    console.log(dim('3. Switch to a different theme in config.json'));
     console.log('');
 
     // Check forceTheme
@@ -952,7 +1033,7 @@ export async function build() {
       console.log(errorMsg('Build aborted due to theme validation errors'));
       process.exit(1);
     } else {
-      console.log(warning('  forceTheme enabled - building with broken theme'));
+      console.log(warning('forceTheme enabled - building with broken theme'));
       console.log(warning('Site may have rendering errors or broken pages'));
       console.log('');
     }
@@ -962,7 +1043,7 @@ export async function build() {
   if (validation && validation.warnings.length > 0) {
     console.log(warning(`Theme "${activeTheme}" has warnings:`));
     validation.warnings.forEach(warn => {
-      console.log(dim(`  • ${warn}`));
+      console.log(dim(`• ${warn}`));
     });
     console.log('');
   }
@@ -986,15 +1067,10 @@ export async function build() {
     return;
   }
 
-  if (!templatesCache.has('index')) {
-    console.log(errorMsg('Missing required template: index.html'));
-    return;
-  }
-
   if (brokenImages.length > 0) {
     console.log(warning(`\nBroken image references detected:`));
     for (const broken of brokenImages) {
-      console.log(dim(`  • ${broken.page} → ${broken.src} (file not found)`));
+      console.log(dim(`• ${broken.page} → ${broken.src} (file not found)`));
     }
     console.log('');
   }
@@ -1004,11 +1080,11 @@ export async function build() {
 
   const imagesCount = await optimizeImagesFromContent(imageReferences, BUILD_DIR, true);
 
-  buildEntries(contentCache, templatesCache, navigation, siteConfig, mode);
-  buildIndexPages(contentCache, templatesCache, navigation, siteConfig);
-  buildTagPages(contentCache, templatesCache, navigation, siteConfig);
-  buildCategoryPages(contentCache, templatesCache, navigation, siteConfig);
-  buildSeriesPages(contentCache, templatesCache, navigation, siteConfig);
+  buildEntries(contentCache, templatesCache, navigation, siteConfig, mode, themeMetadata);
+  buildIndexPages(contentCache, templatesCache, navigation, siteConfig, themeMetadata);
+  buildTagPages(contentCache, templatesCache, navigation, siteConfig, themeMetadata);
+  buildCategoryPages(contentCache, templatesCache, navigation, siteConfig, themeMetadata);
+  buildSeriesPages(contentCache, templatesCache, navigation, siteConfig, themeMetadata);
   await buildRSSAndSitemap(contentCache, siteConfig);
   buildSearchIndex(contentCache);
   buildRobotsTxt(siteConfig, themeAssets);
@@ -1018,12 +1094,19 @@ export async function build() {
   copyStaticHtmlFiles(contentCache);
   copyStaticFilesFromContent(contentRoot);
 
+  // 7. Compression (Gzip/Brotli)
+  console.log(info('Compressing assets...'));
+  await compressDirectory(BUILD_DIR);
+
   console.log(bright(`\n${success('Build complete!')} Output in /build`));
-  console.log(dim(`   ${contentCache.size} content files + ${getAllTags(contentCache).length} tag pages`));
+  console.log(dim(`${contentCache.size} content files + ${getAllTags(contentCache).length} tag pages`));
   if (imagesCount > 0) {
-    console.log(dim(`   ${imagesCount} images optimized`));
+    console.log(dim(`${imagesCount} images optimized`));
   }
 }
+
+// Named export for CLI call
+export const buildSite = build;
 
 export async function optimizeToCache(imageReferences, brokenImages) {
   console.log('');
@@ -1031,7 +1114,7 @@ export async function optimizeToCache(imageReferences, brokenImages) {
   if (brokenImages.length > 0) {
     console.log(warning(`Broken image references detected:`));
     for (const broken of brokenImages) {
-      console.log(dim(`  • ${broken.page} → ${broken.src} (file not found)`));
+      console.log(dim(`• ${broken.page} → ${broken.src} (file not found)`));
     }
     console.log('');
   }

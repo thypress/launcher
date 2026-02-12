@@ -115,9 +115,9 @@ export const EMBEDDED_TEMPLATES = ${JSON.stringify(templates, null, 2)};
 fs.writeFileSync(outputFile, output);
 
 console.log(`✓ Successfully embedded ${stats.total} template files`);
-console.log(`  - ${stats.html} HTML templates`);
-console.log(`  - ${stats.css} CSS files`);
-console.log(`  - ${stats.js} JavaScript files`);
-console.log(`  - ${stats.other} other assets`);
-console.log(`  Total size: ${sizeMB}MB`);
-console.log(`  Output: ${outputFile}`);
+console.log(`- ${stats.html} HTML templates`);
+console.log(`- ${stats.css} CSS files`);
+console.log(`- ${stats.js} JavaScript files`);
+console.log(`- ${stats.other} other assets`);
+console.log(`Total size: ${sizeMB}MB`);
+console.log(`Output: ${outputFile}`);

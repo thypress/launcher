@@ -1,3 +1,31 @@
+# # .github/workflows/release.yml
+# name: Build Executables
+# on:
+#   push:
+#     tags: ['v*']
+
+# jobs:
+#   build:
+#     runs-on: ${{ matrix.os }}
+#     strategy:
+#       matrix:
+#         os: [windows-latest, ubuntu-latest, macos-latest]
+
+#     steps:
+#       - uses: actions/checkout@v4
+#       - uses: oven-sh/setup-bun@v1
+#       - run: bun install
+#       - run: bun run build:exe
+#       - uses: actions/upload-artifact@v4
+#         with:
+#           name: thypress-${{ matrix.os }}
+#           path: |
+#             THYPRESS*.exe
+#             thypress-binder
+
+
+
+
 name: Release Binaries
 
 on:

@@ -5,191 +5,194 @@
 // published by the Free Software Foundation, either version 3 of the
 // License, or (at your option) any later version.
 
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Affero General Public License for more details.
-
-// You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see <https://www.gnu.org>.
-
 import crypto from 'crypto';
 import zlib from 'zlib';
 import { promisify } from 'util';
 
 const gzip = promisify(zlib.gzip);
-const brotliCompress = promisify(zlib.brotliCompress);
+const brotli = promisify(zlib.brotliCompress);
 
+/**
+ * Cache Manager
+ * Handles multi-layer caching and Memoized Just-In-Time compression
+ */
 export class CacheManager {
-  constructor(maxSize = 50 * 1024 * 1024) {
+  constructor(maxSize = 50 * 1024 * 1024) { // 50MB static asset limit (configurable)
     this.maxSize = maxSize;
     this.currentSize = 0;
 
+    // Layer 1: Strings (Dynamic Mode Source)
     this.renderedCache = new Map();
+
+    // Layer 2: Static Files (Build Mode Source)
     this.precompressedCache = new Map();
+
+    // Layer 3: Assets (Images/Fonts)
     this.staticAssetCache = new Map();
+
+    // Layer 4: Meta Data (JSON/XML)
     this.dynamicContentCache = new Map();
+
+    // Layer 5: MEMOIZATION (The "Hot Gzip" Cache) with LRU eviction
+    this.compressedBufferCache = new Map();
+    this.MAX_COMPRESSED_ENTRIES = 2000; // ~200MB max (100KB avg per entry)
   }
 
   generateETag(content) {
     const buffer = Buffer.isBuffer(content) ? content : Buffer.from(content);
-    return `"${crypto.createHash('md5').update(buffer).digest('hex')}"`;
+    return crypto.createHash('md5').update(buffer).digest('hex');
   }
 
   getCacheControl(mimeType) {
+    // DYNAMIC MODE: Force browser to revalidate (Status 304 or 200)
+    if (process.env.THYPRESS_MODE === 'dynamic') {
+      return 'no-cache, no-store, must-revalidate';
+    }
+
+    // STATIC MODE: Production headers
     if (mimeType.includes('image') || mimeType.includes('font') ||
         mimeType === 'text/css' || mimeType === 'text/javascript') {
       return 'public, max-age=31536000, immutable';
     }
+
     if (mimeType === 'text/html') {
       return 'public, max-age=3600';
     }
+
     return 'public, max-age=300';
   }
 
-  async compressContent(content, acceptEncoding) {
-    const contentBuffer = Buffer.isBuffer(content) ? content : Buffer.from(content);
+  addStaticAsset(key, content, mimeType) {
+    if (this.staticAssetCache.has(key)) return;
 
-    const supportsBrotli = acceptEncoding && acceptEncoding.includes('br');
-    const supportsGzip = acceptEncoding && acceptEncoding.includes('gzip');
-
-    if (supportsBrotli) {
-      return {
-        content: await brotliCompress(contentBuffer),
-        encoding: 'br'
-      };
-    } else if (supportsGzip) {
-      return {
-        content: await gzip(contentBuffer),
-        encoding: 'gzip'
-      };
+    if (this.currentSize + content.length > this.maxSize) {
+      this.staticAssetCache.clear();
+      this.compressedBufferCache.clear();
+      this.currentSize = 0;
     }
 
-    return {
-      content: contentBuffer,
-      encoding: null
-    };
+    this.staticAssetCache.set(key, {
+      content,
+      mimeType,
+      etag: this.generateETag(content)
+    });
+    this.currentSize += content.length;
   }
 
-  async serveWithCache(content, mimeType, request, options = {}) {
-    const { skipCompression = false, maxAge = null } = options;
+  delete(key) {
+    let deleted = false;
+    if (this.renderedCache.delete(key)) deleted = true;
+    if (this.precompressedCache.delete(`${key}:gzip`)) deleted = true;
+    if (this.precompressedCache.delete(`${key}:br`)) deleted = true;
+    if (this.dynamicContentCache.delete(key)) deleted = true;
+    return deleted;
+  }
 
-    const contentBuffer = Buffer.isBuffer(content) ? content : Buffer.from(content);
-    const etag = this.generateETag(contentBuffer);
-    const acceptEncoding = request.headers.get('accept-encoding') || '';
-    const ifNoneMatch = request.headers.get('if-none-match');
+  clearAll() {
+    const count = this.renderedCache.size + this.staticAssetCache.size;
+    this.renderedCache.clear();
+    this.precompressedCache.clear();
+    this.staticAssetCache.clear();
+    this.dynamicContentCache.clear();
+    this.compressedBufferCache.clear();
+    this.currentSize = 0;
+    return count;
+  }
 
-    if (ifNoneMatch === etag) {
+  servePrecompressed(key, request) {
+    if (process.env.THYPRESS_MODE === 'dynamic') return null;
+
+    const accept = request.headers.get('Accept-Encoding') || '';
+
+    if (accept.includes('br') && this.precompressedCache.has(`${key}:br`)) {
+      const cached = this.precompressedCache.get(`${key}:br`);
+      return this.createResponse(cached.content, 'text/html', cached.etag, 'br');
+    }
+
+    if (accept.includes('gzip') && this.precompressedCache.has(`${key}:gzip`)) {
+      const cached = this.precompressedCache.get(`${key}:gzip`);
+      return this.createResponse(cached.content, 'text/html', cached.etag, 'gzip');
+    }
+
+    return null;
+  }
+
+  async serveWithCache(content, mimeType, request) {
+    const etag = this.generateETag(content);
+
+    // 304 Not Modified
+    if (request.headers.get('If-None-Match') === etag) {
+      metrics.httpCacheHits++;
       return new Response(null, {
         status: 304,
         headers: {
           'ETag': etag,
-          'Cache-Control': maxAge || this.getCacheControl(mimeType)
+          'Cache-Control': this.getCacheControl(mimeType),
+          'Vary': 'Accept-Encoding'
         }
       });
     }
 
-    let finalContent = contentBuffer;
-    let contentEncoding = null;
+    // Dynamic Compression Logic with LRU eviction
+    const accept = request.headers.get('Accept-Encoding') || '';
+    const shouldCompress = mimeType.match(/text|javascript|json|xml|css/);
 
-    if (!skipCompression && contentBuffer.length > 1024) {
-      const compressed = await this.compressContent(contentBuffer, acceptEncoding);
-      finalContent = compressed.content;
-      contentEncoding = compressed.encoding;
+    if (shouldCompress) {
+      if (accept.includes('br')) {
+        const cacheKey = `br:${etag}`;
+        if (this.compressedBufferCache.has(cacheKey)) {
+          return this.createResponse(this.compressedBufferCache.get(cacheKey), mimeType, etag, 'br');
+        }
+
+        const buffer = Buffer.isBuffer(content) ? content : Buffer.from(content);
+        const compressed = await brotli(buffer);
+
+        // LRU eviction: remove oldest entry if at capacity
+        if (this.compressedBufferCache.size >= this.MAX_COMPRESSED_ENTRIES) {
+          const firstKey = this.compressedBufferCache.keys().next().value;
+          this.compressedBufferCache.delete(firstKey);
+        }
+
+        this.compressedBufferCache.set(cacheKey, compressed);
+        return this.createResponse(compressed, mimeType, etag, 'br');
+      }
+
+      if (accept.includes('gzip')) {
+        const cacheKey = `gzip:${etag}`;
+        if (this.compressedBufferCache.has(cacheKey)) {
+          return this.createResponse(this.compressedBufferCache.get(cacheKey), mimeType, etag, 'gzip');
+        }
+
+        const buffer = Buffer.isBuffer(content) ? content : Buffer.from(content);
+        const compressed = await gzip(buffer);
+
+        // LRU eviction: remove oldest entry if at capacity
+        if (this.compressedBufferCache.size >= this.MAX_COMPRESSED_ENTRIES) {
+          const firstKey = this.compressedBufferCache.keys().next().value;
+          this.compressedBufferCache.delete(firstKey);
+        }
+
+        this.compressedBufferCache.set(cacheKey, compressed);
+        return this.createResponse(compressed, mimeType, etag, 'gzip');
+      }
     }
 
+    return this.createResponse(content, mimeType, etag, null);
+  }
+
+  createResponse(body, mimeType, etag, encoding) {
     const headers = {
       'Content-Type': mimeType,
       'ETag': etag,
-      'Cache-Control': maxAge || this.getCacheControl(mimeType),
+      'Cache-Control': this.getCacheControl(mimeType),
       'Vary': 'Accept-Encoding'
     };
 
-    if (contentEncoding) {
-      headers['Content-Encoding'] = contentEncoding;
+    if (encoding) {
+      headers['Content-Encoding'] = encoding;
     }
 
-    return new Response(finalContent, { headers });
-  }
-
-  servePrecompressed(slug, request, mimeType = 'text/html; charset=utf-8') {
-    const acceptEncoding = request.headers.get('accept-encoding') || '';
-    const ifNoneMatch = request.headers.get('if-none-match');
-
-    const preferBrotli = acceptEncoding.includes('br');
-    const cacheKey = preferBrotli ? `${slug}:br` : `${slug}:gzip`;
-
-    const cached = this.precompressedCache.get(cacheKey);
-    if (!cached) return null;
-
-    if (ifNoneMatch === cached.etag) {
-      return new Response(null, {
-        status: 304,
-        headers: {
-          'ETag': cached.etag,
-          'Cache-Control': this.getCacheControl(mimeType)
-        }
-      });
-    }
-
-    return new Response(cached.content, {
-      headers: {
-        'Content-Type': mimeType,
-        'Content-Encoding': cached.encoding,
-        'ETag': cached.etag,
-        'Cache-Control': this.getCacheControl(mimeType),
-        'Vary': 'Accept-Encoding'
-      }
-    });
-  }
-
-  addStaticAsset(key, content, mimeType) {
-    if (content.length < 5 * 1024 * 1024) {
-      this.staticAssetCache.set(key, { content, mimeType, lastAccessed: Date.now() });
-      this.currentSize += content.length;
-
-      if (this.currentSize > this.maxSize) {
-        // Find oldest accessed item
-        let oldestKey = null;
-        let oldestTime = Date.now();
-        for (const [k, v] of this.staticAssetCache) {
-          if (v.lastAccessed < oldestTime) {
-            oldestTime = v.lastAccessed;
-            oldestKey = k;
-          }
-        }
-        if (oldestKey) {
-          const item = this.staticAssetCache.get(oldestKey);
-          this.currentSize -= item.content.length;
-          this.staticAssetCache.delete(oldestKey);
-        }
-      }
-    }
-  }
-
-  clearAll() {
-    const itemsFreed = this.staticAssetCache.size +
-                       this.dynamicContentCache.size +
-                       this.renderedCache.size +
-                       this.precompressedCache.size;
-
-    this.staticAssetCache.clear();
-    this.dynamicContentCache.clear();
-    this.renderedCache.clear();
-    this.precompressedCache.clear();
-    this.currentSize = 0;
-
-    return itemsFreed;
-  }
-
-  getStats() {
-    return {
-      rendered: this.renderedCache.size,
-      precompressed: this.precompressedCache.size / 2,
-      staticAssets: this.staticAssetCache.size,
-      dynamicContent: this.dynamicContentCache.size,
-      totalSize: this.currentSize
-    };
+    return new Response(body, { headers });
   }
 }
 

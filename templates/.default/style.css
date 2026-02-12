@@ -417,7 +417,7 @@ article + aside ul {
 article + aside li { padding: .75rem 0; }
 
 /* ===== Admonitions ===== */
-.admonition {
+/*.admonition {
   margin: 1.5rem 0;
   padding: 1rem;
   border-left: 4px solid;
@@ -428,7 +428,96 @@ article + aside li { padding: .75rem 0; }
   margin: 0 0 .5rem;
 }
 
-.admonition-content p { margin: .5rem 0; }
+.admonition-content p { margin: .5rem 0; }*/
+/* ADD THESE STYLES to the END of templates/.default/style.css */
+
+/* ===== Admonitions - Minimalist, Grayscale ===== */
+.admonition {
+  margin: 1.5rem 0;
+  padding: 1rem;
+  border-left: 3px solid;
+  background: transparent;
+}
+
+.admonition-title {
+  font-weight: 700;
+  font-size: 0.875rem;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.5rem;
+}
+
+.admonition-content p {
+  margin: 0.5rem 0;
+}
+
+/* Type-specific borders - Grayscale only (no emojis, no colors) */
+.admonition-note {
+  border-left-color: #6b6b6b;
+}
+
+.admonition-tip {
+  border-left-color: #2e2e2e;
+}
+
+.admonition-warning {
+  border-left-color: #4a4a4a;
+}
+
+.admonition-danger {
+  border-left-color: #1a1a1a;
+}
+
+.admonition-info {
+  border-left-color: #9a9a9a;
+}
+
+/* Dark mode (invert hierarchy for contrast) */
+html[data-theme="dark"] .admonition-note {
+  border-left-color: #9a9a9a;
+}
+
+html[data-theme="dark"] .admonition-tip {
+  border-left-color: #d6d6d6;
+}
+
+html[data-theme="dark"] .admonition-warning {
+  border-left-color: #b0b0b0;
+}
+
+html[data-theme="dark"] .admonition-danger {
+  border-left-color: #e6e6e6;
+}
+
+html[data-theme="dark"] .admonition-info {
+  border-left-color: #6f6f6f;
+}
+
+/* GitHub-style alerts (from markdown-it-github-alerts) */
+.markdown-alert {
+  margin: 1.5rem 0;
+  padding: 1rem;
+  border-left: 3px solid;
+  background: transparent;
+}
+
+.markdown-alert-title {
+  font-weight: 700;
+  font-size: 0.875rem;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.5rem;
+}
+
+.markdown-alert-note { border-left-color: #6b6b6b; }
+.markdown-alert-tip { border-left-color: #2e2e2e; }
+.markdown-alert-important { border-left-color: #4a4a4a; }
+.markdown-alert-warning { border-left-color: #4a4a4a; }
+.markdown-alert-caution { border-left-color: #1a1a1a; }
+
+html[data-theme="dark"] .markdown-alert-note { border-left-color: #9a9a9a; }
+html[data-theme="dark"] .markdown-alert-tip { border-left-color: #d6d6d6; }
+html[data-theme="dark"] .markdown-alert-important { border-left-color: #b0b0b0; }
+html[data-theme="dark"] .markdown-alert-warning { border-left-color: #b0b0b0; }
+html[data-theme="dark"] .markdown-alert-caution { border-left-color: #e6e6e6; }
 
 /* ===== Article Content ===== */
 article img,
@@ -438,6 +527,7 @@ article svg,
 article canvas {
   max-width: 100%;
   height: auto;
+  display: block;
 }
 
 article iframe {

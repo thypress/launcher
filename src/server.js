@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2026 Teo Costa (THYPRESS)
+// SPDX-FileCopyrightText: 2026 Teo Costa (THYPRESS <https://thypress.org>)
 // SPDX-License-Identifier: MPL-2.0
 
 // ARCHITECTURE NOTE:
@@ -27,37 +27,19 @@ import { SecurityManager } from './utils/security.js';
 // ============================================================================
 
 // Content processing from content-processor.js
-import {
-  loadAllContent,
-  buildNavigationTree,
-  processContentFile
-} from './content-processor.js';
-
+import {  loadAllContent } from './content-processor.js';
 // Theme functions from theme-system.js
-import {
-  loadTheme
-} from './theme-system.js';
-
+import { loadTheme } from './theme-system.js';
 // Utilities from taxonomy.js
-import {
-  getSiteConfig,
-  normalizeToWebPath
-} from './utils/taxonomy.js';
-
+import { getSiteConfig, normalizeToWebPath } from './utils/taxonomy.js';
 // Rendering functions from renderer.js
-import {
-  generateSearchIndex
-} from './renderer.js';
-
+import { generateSearchIndex } from './renderer.js';
 // Build functions
 import { optimizeToCache } from './build.js';
-
 // Color utilities
 import { success, error as errorMsg, warning, info, dim, bright } from './utils/colors.js';
-
 // Cache system
 import { CacheManager, metrics } from './cache.js';
-
 // Routes
 import { handleRequest } from './routes.js';
 
@@ -846,7 +828,10 @@ async function startDynamicServer() {
         metrics.requests++;
 
         // Security validation layer
-        const ip = securityManager.getClientIP(request);
+        // Pass `server` here so getClientIP can use Bun's native server.requestIP().
+        // Without this, getClientIP returns 'unknown' and IP banning/rate-limiting
+        // are non-functional (all clients share the same identity).
+        const ip = securityManager.getClientIP(request, server);
 
         // Check IP ban
         if (securityManager.isIPBanned(ip)) {
@@ -880,7 +865,8 @@ async function startDynamicServer() {
           metrics,
           preRenderAllContent,
           preCompressContent,
-          securityManager // Pass security manager to routes
+          securityManager, // Pass security manager to routes
+          bunServer: server // Pass Bun server instance so admin-routes.js can call getClientIP correctly
         };
 
         return await handleRequest(request, server, deps);

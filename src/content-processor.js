@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2026 Teo Costa (THYPRESS)
+// SPDX-FileCopyrightText: 2026 Teo Costa (THYPRESS <https://thypress.org>)
 // SPDX-License-Identifier: MPL-2.0
 
 import fs from 'fs';

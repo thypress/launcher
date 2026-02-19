@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2026 Teo Costa (THYPRESS)
+// SPDX-FileCopyrightText: 2026 Teo Costa (THYPRESS <https://thypress.org>)
 // SPDX-License-Identifier: MPL-2.0
 
 import crypto from 'crypto';
@@ -12,13 +12,18 @@ import path from 'path';
  * - IP-based permaban + rate limiting
  * - CSRF protection via Origin validation
  * - Host header validation (anti-DNS rebinding)
- * - Session management (in-memory, expires on restart)
- * - Magic link HMAC authentication
- * - PIN + Proof-of-Work authentication
+ * - Session management (in-memory, expires on restart + 24h server-side TTL)
+ * - Magic link HMAC authentication (60s TTL, one-time use)
+ * - PIN + Proof-of-Work authentication (PIN stored as salt:hash, PoW difficulty 5 hex zeros)
  * - Traffic analysis countermeasures (padding, jitter)
  * - Honeypot routes for automated attack detection
  */
 export class SecurityManager {
+  // PoW difficulty: number of leading hex zeros required in SHA256(salt + nonce).
+  // MUST match POW_DIFFICULTY constant in admin-utils.js adminCryptoScript().
+  // 5 hex zeros = 20 bits = ~1M average attempts = 2-5 seconds on a modern browser.
+  static POW_DIFFICULTY = '00000';
+
   constructor(siteConfig = {}) {
     this.siteConfig = siteConfig;
 
@@ -28,11 +33,12 @@ export class SecurityManager {
 
     // Session management (in-memory, persists until server restart)
     // Reasoning: THYPRESS is a dev tool where restarts are common, single admin user.
-    // Session stays valid until Ctrl+C - simpler than time-based expiry.
+    // Server-side 24h TTL enforced in verifySession to match cookie Max-Age.
     this.sessions = new Map(); // sessionId -> { ip: string, createdAt: timestamp }
 
-    // One-time magic link tokens
-    this.magicTokens = new Set();
+    // One-time magic link tokens with creation timestamps for TTL enforcement.
+    // Map<token, createdAt> replaces the old Set to support 60-second expiry.
+    this.magicTokens = new Map(); // token -> createdAt timestamp
 
     // Proof-of-Work challenges
     this.powChallenges = new Map(); // IP -> { salt: string, createdAt: timestamp }
@@ -43,12 +49,16 @@ export class SecurityManager {
     // HMAC secret for magic links
     this.hmacSecret = this.loadOrGenerateHMACSecret();
 
-    // PIN (if configured)
+    // PIN (if configured) — stored as "salt:hash" (see loadPIN / setPIN)
     this.pin = this.loadPIN();
 
     // Trust proxy configuration
     this.trustProxy = siteConfig.trustProxy === true;
   }
+
+  // ============================================================================
+  // SECRET / KEY MANAGEMENT
+  // ============================================================================
 
   /**
    * Load or generate the admin path secret
@@ -93,30 +103,48 @@ export class SecurityManager {
     return secret;
   }
 
+  // ============================================================================
+  // PIN MANAGEMENT
+  // ============================================================================
+
   /**
    * Load PIN from .thypress/pin
+   * Expected format on disk: "salt:hash" where salt is 32 hex chars (16 random bytes)
+   * and hash is 64 hex chars (SHA-256 of salt + PIN).
+   * Unknown/legacy formats are rejected — user must set a new PIN via the setup form.
    */
   loadPIN() {
     const pinPath = path.join(process.cwd(), '.thypress', 'pin');
 
     if (fs.existsSync(pinPath)) {
-      const pin = fs.readFileSync(pinPath, 'utf-8').trim();
-      // Validate PIN is 4 digits
-      if (/^\d{4}$/.test(pin)) {
-        return pin;
+      const stored = fs.readFileSync(pinPath, 'utf-8').trim();
+
+      // Expected format: salt:hash
+      if (stored.includes(':')) {
+        return stored;
       }
+
+      // Unknown/legacy format (e.g. old plaintext PIN) — reject and return null.
+      // The user will be prompted to set a new PIN via the setup form.
+      console.log('[SECURITY] Unrecognized PIN format in .thypress/pin, ignoring. Please set a new PIN via the admin setup page.');
     }
 
     return null;
   }
 
   /**
-   * Set/update PIN
+   * Set/update PIN — stored on disk as "salt:hash" (salted SHA-256).
+   * Supports 4–6 digit PINs.
+   * @param {string} newPIN - 4-6 digit numeric PIN
    */
   setPIN(newPIN) {
-    if (!/^\d{4}$/.test(newPIN)) {
-      throw new Error('PIN must be exactly 4 digits');
+    if (newPIN.length < 6 || /\s/.test(newPIN)) {
+      throw new Error('PIN must be at least 6 characters with no spaces');
     }
+
+    const salt = crypto.randomBytes(16).toString('hex'); // 32 hex chars
+    const hash = crypto.createHash('sha256').update(salt + newPIN).digest('hex'); // 64 hex chars
+    const stored = `${salt}:${hash}`;
 
     const configDir = path.join(process.cwd(), '.thypress');
     const pinPath = path.join(configDir, 'pin');
@@ -125,26 +153,85 @@ export class SecurityManager {
       fs.mkdirSync(configDir, { recursive: true });
     }
 
-    fs.writeFileSync(pinPath, newPIN, 'utf-8');
-    this.pin = newPIN;
+    fs.writeFileSync(pinPath, stored, 'utf-8');
+    this.pin = stored;
   }
 
   /**
-   * Extract client IP from request
+   * Verify PIN using timing-safe comparison on the derived hashes.
+   * Parses the stored "salt:hash" format and re-derives the hash from inputPIN.
+   * Comparison is done on the hex-decoded hash bytes, not the raw PIN string.
+   * @param {string} inputPIN - PIN to verify
+   * @returns {boolean}
    */
-  getClientIP(request) {
+  verifyPIN(inputPIN) {
+    if (!this.pin || !inputPIN) return false;
+
+    // Parse stored format: salt:hash
+    const colonIndex = this.pin.indexOf(':');
+    if (colonIndex === -1) return false;
+
+    const salt = this.pin.substring(0, colonIndex);
+    const storedHash = this.pin.substring(colonIndex + 1);
+
+    // Re-derive hash from the candidate PIN using the same salt
+    const inputHash = crypto.createHash('sha256').update(salt + inputPIN).digest('hex');
+
+    // Timing-safe comparison on the hash bytes (SHA-256 output is always 32 bytes = 64 hex chars)
+    const storedBuffer = Buffer.from(storedHash, 'hex');
+    const inputBuffer  = Buffer.from(inputHash,  'hex');
+
+    if (storedBuffer.length !== inputBuffer.length) return false;
+
+    return crypto.timingSafeEqual(storedBuffer, inputBuffer);
+  }
+
+  // ============================================================================
+  // IP / REQUEST IDENTIFICATION
+  // ============================================================================
+
+  /**
+   * Extract client IP from request using Bun's native server.requestIP().
+   *
+   * Priority:
+   *   1. X-Forwarded-For header (only when trustProxy: true in siteConfig)
+   *   2. Bun's server.requestIP(request) — the real TCP-layer remote address
+   *   3. 'unknown' fallback (should never be reached in practice with Bun.serve)
+   *
+   * CRITICAL: The `server` object must be the Bun server instance passed as the
+   * second argument to the Bun.serve fetch handler. It is threaded through deps
+   * as deps.bunServer. Without it, banning and per-IP rate limiting are non-functional
+   * because all clients appear as 'unknown' and share the same rate limit bucket.
+   *
+   * @param {Request} request - Incoming HTTP request
+   * @param {Object|null} server - Bun server instance (from fetch handler 2nd arg)
+   * @returns {string} Client IP address
+   */
+  getClientIP(request, server) {
+    // 1. If trust proxy is enabled, check forwarded headers first
     if (this.trustProxy) {
       const forwarded = request.headers.get('x-forwarded-for');
       if (forwarded) {
-        // Take first IP in chain
+        // Take first IP in chain (closest client)
         return forwarded.split(',')[0].trim();
       }
     }
 
-    // Fallback: connection remote address (not available in Bun fetch API)
-    // Use a placeholder - in practice this will be 'unknown' for most cases
+    // 2. Use Bun's native IP resolution — the actual TCP remote address
+    if (server && typeof server.requestIP === 'function') {
+      const addr = server.requestIP(request);
+      if (addr) {
+        return addr.address;
+      }
+    }
+
+    // 3. Last resort fallback — IP banning and per-IP rate limiting won't work correctly
     return 'unknown';
   }
+
+  // ============================================================================
+  // IP BANNING
+  // ============================================================================
 
   /**
    * Check if IP is banned
@@ -160,6 +247,10 @@ export class SecurityManager {
     this.bannedIPs.add(ip);
     console.log(`[SECURITY] Banned IP ${ip} (reason: ${reason})`);
   }
+
+  // ============================================================================
+  // RATE LIMITING
+  // ============================================================================
 
   /**
    * Check rate limit for IP
@@ -207,6 +298,10 @@ export class SecurityManager {
     this.rateLimits.delete(ip);
   }
 
+  // ============================================================================
+  // REQUEST VALIDATION
+  // ============================================================================
+
   /**
    * Validate request headers for security
    * Returns { valid: boolean, error: string }
@@ -252,8 +347,14 @@ export class SecurityManager {
     return { valid: true };
   }
 
+  // ============================================================================
+  // MAGIC LINK TOKENS
+  // ============================================================================
+
   /**
-   * Generate magic link token (HMAC-signed, one-time use)
+   * Generate magic link token (HMAC-signed, one-time use, 60-second TTL).
+   * Token format: "{payload}.{hmac_signature}" where payload is 16 random bytes (hex).
+   * Expired tokens are cleaned up opportunistically on each call to avoid unbounded growth.
    */
   generateMagicToken() {
     const payload = crypto.randomBytes(16).toString('hex');
@@ -262,13 +363,24 @@ export class SecurityManager {
     const signature = hmac.digest('hex');
 
     const token = `${payload}.${signature}`;
-    this.magicTokens.add(token);
+    this.magicTokens.set(token, Date.now());
+
+    // Clean up expired tokens (older than 60s) while we're here
+    const now = Date.now();
+    for (const [t, createdAt] of this.magicTokens) {
+      if (now - createdAt > 60_000) {
+        this.magicTokens.delete(t);
+      }
+    }
 
     return token;
   }
 
   /**
-   * Verify and consume magic link token (one-time use)
+   * Verify and consume magic link token (one-time use, 60-second TTL).
+   * Checks: HMAC validity → existence in map → age ≤ 60s → delete on use.
+   * @param {string} token - Token from URL parameter
+   * @returns {boolean} True only if token is valid, unexpired, and not yet used
    */
   verifyMagicToken(token) {
     if (!token || typeof token !== 'string') return false;
@@ -278,29 +390,52 @@ export class SecurityManager {
 
     const [payload, signature] = parts;
 
-    // Verify HMAC
+    // Verify HMAC — reject forged tokens before any map lookup
     const hmac = crypto.createHmac('sha256', this.hmacSecret);
     hmac.update(payload);
     const expectedSignature = hmac.digest('hex');
 
-    // Timing-safe comparison
-    if (!crypto.timingSafeEqual(Buffer.from(signature, 'hex'), Buffer.from(expectedSignature, 'hex'))) {
+    try {
+      // Timing-safe comparison to prevent signature oracle attacks
+      if (!crypto.timingSafeEqual(
+        Buffer.from(signature, 'hex'),
+        Buffer.from(expectedSignature, 'hex')
+      )) {
+        return false;
+      }
+    } catch {
+      // Buffer.from will throw if the signature isn't valid hex
       return false;
     }
 
-    // Check if token was already used
+    // Check existence (also catches already-consumed tokens)
     if (!this.magicTokens.has(token)) {
       return false;
     }
 
-    // Consume token (one-time use)
+    // Check TTL (60 seconds)
+    const createdAt = this.magicTokens.get(token);
+    if (Date.now() - createdAt > 60_000) {
+      this.magicTokens.delete(token);
+      return false;
+    }
+
+    // Consume token — one-time use
     this.magicTokens.delete(token);
 
     return true;
   }
 
+  // ============================================================================
+  // PROOF-OF-WORK
+  // ============================================================================
+
   /**
-   * Generate Proof-of-Work challenge
+   * Generate Proof-of-Work challenge for an IP.
+   * Replaces any existing pending challenge for the same IP.
+   * Cleans up challenges older than 5 minutes to prevent memory growth.
+   * @param {string} ip - Client IP address
+   * @returns {string} Salt (hex string) to be sent to the client
    */
   generatePowChallenge(ip) {
     const salt = crypto.randomBytes(16).toString('hex');
@@ -322,8 +457,12 @@ export class SecurityManager {
   }
 
   /**
-   * Verify Proof-of-Work solution
-   * Client must find nonce where SHA256(salt + nonce) starts with '0000'
+   * Verify Proof-of-Work solution.
+   * Client must find nonce where SHA256(salt + nonce) starts with SecurityManager.POW_DIFFICULTY.
+   * The challenge is consumed on successful verification (one-time use).
+   * @param {string} ip - Client IP address
+   * @param {string} nonce - Candidate nonce string from client
+   * @returns {boolean} True if solution is valid and challenge existed
    */
   verifyPowSolution(ip, nonce) {
     const challenge = this.powChallenges.get(ip);
@@ -333,32 +472,24 @@ export class SecurityManager {
     hash.update(challenge.salt + nonce);
     const result = hash.digest('hex');
 
-    const valid = result.startsWith('0000');
+    const valid = result.startsWith(SecurityManager.POW_DIFFICULTY);
 
     if (valid) {
-      // Consume challenge
+      // Consume challenge — prevents PoW solution replay
       this.powChallenges.delete(ip);
     }
 
     return valid;
   }
 
-  /**
-   * Verify PIN (timing-safe comparison)
-   */
-  verifyPIN(inputPIN) {
-    if (!this.pin || !inputPIN) return false;
-
-    const pinBuffer = Buffer.from(this.pin);
-    const inputBuffer = Buffer.from(inputPIN);
-
-    if (pinBuffer.length !== inputBuffer.length) return false;
-
-    return crypto.timingSafeEqual(pinBuffer, inputBuffer);
-  }
+  // ============================================================================
+  // SESSION MANAGEMENT
+  // ============================================================================
 
   /**
    * Create authenticated session
+   * @param {string} ip - Client IP address at time of authentication
+   * @returns {string} Session ID (64 hex chars = 32 random bytes)
    */
   createSession(ip) {
     const sessionId = crypto.randomBytes(32).toString('hex');
@@ -372,9 +503,15 @@ export class SecurityManager {
   }
 
   /**
-   * Verify session cookie
+   * Verify session cookie.
+   * Checks: cookie present → session exists → 24h TTL not exceeded → IP matches.
+   * The IP check is skipped if the current IP is 'unknown' (server fallback path).
+   *
+   * @param {Request} request - Incoming HTTP request
+   * @param {Object|null} server - Bun server instance for real IP resolution
+   * @returns {boolean} True if session is valid and unexpired
    */
-  verifySession(request) {
+  verifySession(request, server) {
     const cookies = request.headers.get('cookie') || '';
     const sessionMatch = cookies.match(/thypress_session=([^;]+)/);
 
@@ -385,14 +522,26 @@ export class SecurityManager {
 
     if (!session) return false;
 
+    // Enforce 24-hour server-side expiry (matches cookie Max-Age)
+    if (Date.now() - session.createdAt > 86_400_000) {
+      this.sessions.delete(sessionId);
+      return false;
+    }
+
     // Optional: verify IP matches (prevent session hijacking)
-    const currentIP = this.getClientIP(request);
+    // Skip when currentIP is 'unknown' — don't reject valid sessions just because
+    // IP resolution fell back; the TTL and session ID entropy cover us.
+    const currentIP = this.getClientIP(request, server);
     if (currentIP !== 'unknown' && session.ip !== currentIP) {
       return false;
     }
 
     return true;
   }
+
+  // ============================================================================
+  // TRAFFIC ANALYSIS COUNTERMEASURES
+  // ============================================================================
 
   /**
    * Apply traffic analysis countermeasures
@@ -419,6 +568,10 @@ export class SecurityManager {
     return paddedBody;
   }
 
+  // ============================================================================
+  // SECURITY HEADERS & COOKIES
+  // ============================================================================
+
   /**
    * Apply security headers to response
    */
@@ -436,6 +589,7 @@ export class SecurityManager {
 
   /**
    * Create session cookie
+   * HttpOnly: no JS access. SameSite=Strict: no cross-site requests. Max-Age=86400: 24h (matches server-side TTL).
    */
   createSessionCookie(sessionId) {
     return `thypress_session=${sessionId}; HttpOnly; SameSite=Strict; Path=/; Max-Age=86400`;

@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2026 Teo Costa (THYPRESS)
+// SPDX-FileCopyrightText: 2026 Teo Costa (THYPRESS <https://thypress.org>)
 // SPDX-License-Identifier: MPL-2.0
 
 import fs from 'fs';
@@ -71,49 +71,79 @@ export function getEntriesSorted(contentCache) {
   });
 }
 
+//===========================================================================
+/**
+ * Recursively freezes an object to ensure the source of truth
+ * cannot be tampered with at runtime.
+ */
+function deepFreeze(obj) {
+  Object.getOwnPropertyNames(obj).forEach((key) => {
+    const value = obj[key];
+    if (
+      value &&
+      typeof value === "object" &&
+      !Object.isFrozen(value)
+    ) {
+      deepFreeze(value);
+    }
+  });
+  return Object.freeze(obj);
+}
+
+const DEFAULTS = {
+  // === Core Settings ===
+  url: 'https://example.com',
+  title: 'My Site',
+  author: 'Anonymous',
+  description: 'A site powered by THYPRESS',
+
+  // === Content Processing ===
+  contentDir: 'content',
+  skipDirs: [],
+  readingSpeed: 200,
+  escapeTextFiles: true,
+
+  // === Image Handling ===
+  strictImages: false,
+
+  // === Theme System ===
+  theme: '.default',
+  forceTheme: false,
+  defaultTheme: null,             // Fallback embedded theme ID (null = use binary default)
+  fingerprintAssets: false,
+  strictThemeIsolation: false,
+
+  // === Dynamic Mode (thypress serve) ===
+  disablePreRender: false,        // Skip warmup for faster dev startups
+  disableLiveReload: false,       // Disable live reload
+  preCompressContent: false,      // Pre-compress all pages (opt-in for production)
+
+  // === Validation ===
+  strictPreRender: true,          // Exit if ANY page fails during warmup
+  strictTemplateValidation: true, // Exit if template syntax is invalid
+
+  // === Security ===
+  allowExternalRedirects: false,  // Allow redirects to external URLs
+  allowedRedirectDomains: [],     // Whitelist of allowed domains for redirects
+
+  // === Cache Configuration ===
+  cacheMaxSize: 50 * 1024 * 1024  // 50MB in bytes (configurable)
+};
+
+// The Master Source (Immutable)
+const frozenDefaults = deepFreeze(DEFAULTS);
+
+/**
+ * Returns a 100% detached deep copy for local updates.
+ */
+export const configDefaults = () => structuredClone(frozenDefaults);
+
 /**
  * Load site configuration from config.json
  * Returns FULL config object - all fields preserved for template access
  */
 export function getSiteConfig() {
-  const defaults = {
-    // === Core Settings ===
-    title: 'My Site',
-    description: 'A site powered by THYPRESS',
-    url: 'https://example.com',
-    author: 'Anonymous',
-
-    // === Content Processing ===
-    contentDir: 'content',
-    skipDirs: [],
-    readingSpeed: 200,
-    escapeTextFiles: true,
-
-    // === Image Handling ===
-    strictImages: false,
-
-    // === Theme System ===
-    strictThemeIsolation: false,
-    forceTheme: false,
-    defaultTheme: null,             // Fallback embedded theme ID (null = use binary default)
-    fingerprintAssets: false,
-
-    // === Dynamic Mode (thypress serve) ===
-    disablePreRender: false,        // Skip warmup for faster dev startups
-    preCompressContent: false,      // Pre-compress all pages (opt-in for production)
-    disableLiveReload: false,       // Disable live reload
-
-    // === Validation ===
-    strictPreRender: true,          // Exit if ANY page fails during warmup
-    strictTemplateValidation: true, // Exit if template syntax is invalid
-
-    // === Security ===
-    allowExternalRedirects: false,  // Allow redirects to external URLs
-    allowedRedirectDomains: [],     // Whitelist of allowed domains for redirects
-
-    // === Cache Configuration ===
-    cacheMaxSize: 50 * 1024 * 1024  // 50MB in bytes (configurable)
-  };
+  const defaults = configDefaults();
 
   try {
     const configPath = path.join(process.cwd(), 'config.json');

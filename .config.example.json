@@ -11,7 +11,7 @@
   "skipDirs": ["tmp", "backup"],
 
   "_comment_theme": "Theme Configuration",
-  "theme": "my-press",
+  "theme": ".default",
   "strictThemeIsolation": false,
 
   "_comment_features": "Feature Flags",

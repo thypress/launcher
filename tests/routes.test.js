@@ -3,14 +3,14 @@ import { handleRequest } from '../src/routes.js';
 
 describe('Route Handling', () => {
   let mockDeps;
-  
+
   beforeEach(() => {
     mockDeps = {
       contentCache: new Map([
-        ['hello', { 
-          slug: 'hello', 
-          title: 'Hello', 
-          html: '<p>Hello</p>', 
+        ['hello', {
+          slug: 'hello',
+          title: 'Hello',
+          html: '<p>Hello</p>',
           type: 'md',
           tags: [],
           categories: [],
@@ -36,7 +36,7 @@ describe('Route Handling', () => {
       siteConfig: {},
       themeMetadata: {},
       redirectRules: new Map(),
-      activeTheme: 'my-press',
+      activeTheme: '.default',
       contentRoot: process.cwd(),
       themeAssets: new Map()
     };
@@ -86,9 +86,9 @@ describe('Route Handling', () => {
   });
 
   test('serves precompressed content when available', async () => {
-    mockDeps.cacheManager.servePrecompressed = () => 
+    mockDeps.cacheManager.servePrecompressed = () =>
       new Response('compressed', { headers: { 'content-encoding': 'br' } });
-    
+
     const req = new Request('http://localhost:3009/hello/');
     const res = await handleRequest(req, null, mockDeps);
     expect(res.headers.get('content-encoding')).toBe('br');

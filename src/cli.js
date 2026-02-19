@@ -6,12 +6,9 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { ZipReader, BlobReader, BlobWriter } from '@zip.js/zip.js';
-import matter from 'gray-matter';
-import { getSiteConfig, slugify } from './utils/taxonomy.js';
-import { setActiveTheme } from './theme-system.js';
+import { configDefaults, getSiteConfig } from './utils/taxonomy.js';
 import { success, error as errorMsg, warning, info, dim, bright } from './utils/colors.js';
-import { loadEmbeddedTemplates } from './theme-system.js';
-import { REDIRECT_STATUS_CODES, DEFAULT_STATUS_CODE, parseRedirectRules } from './build.js';
+import { REDIRECT_STATUS_CODES, parseRedirectRules } from './build.js';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 
@@ -604,7 +601,7 @@ Reusable template components use similar conventions:
 
 1. **\`partials/\` folder** in your theme:
    \`\`\`
-   templates/my-theme/
+   templates/.default/
    ├── index.html
    ├── entry.html
    └── partials/           ← Auto-registered as partials
@@ -627,11 +624,11 @@ Reusable template components use similar conventions:
 - 🏷️ **Taxonomies** - Tags, categories, and series
 - 🔗 **Related content** based on shared tags
 - 📊 **Table of contents** (auto-generated from headings)
-- 🔄 **Live reload** with WebSocket
+- 🔄 **Hot reload** templates and content automatically
 - 🎨 **Themes** - Handlebars templates
 - 📰 **RSS feeds** - Global, per-tag, per-category, per-series
 - 🗺️ **Sitemap** generation
-- **Search index** (JSON)
+- 🔍 **Search index** (JSON)
 - 🖼️ **Image optimization** with responsive sizes
 - ⚡ **Fast builds** with parallel processing
 - 🎯 **URL redirects** with pattern matching
@@ -738,46 +735,8 @@ Happy writing! 🎉
     // Create config.json
     const configPath = path.join(currentDir, 'config.json');
     if (!fs.existsSync(configPath)) {
-      const defaultConfig = {
-        // === Core Settings ===
-        title: 'My Site',
-        description: 'A site powered by THYPRESS',
-        url: 'https://example.com',
-        author: 'Anonymous',
-
-        // === Content Processing ===
-        contentDir: 'content',
-        skipDirs: [],
-        readingSpeed: 200,
-        escapeTextFiles: true,
-
-        // === Image Handling ===
-        strictImages: false,
-
-        // === Theme System ===
-        theme: 'my-press',
-        strictThemeIsolation: false,
-        forceTheme: false,
-        discoverTemplates: false,
-        fingerprintAssets: false,
-
-        // === Dynamic Mode (thypress serve) ===
-        disablePreRender: false,        // Skip warmup for faster dev startups
-        preCompressContent: false,      // Pre-compress all pages (opt-in for production)
-        disableLiveReload: false,       // Disable live reload
-
-        // === Validation ===
-        strictPreRender: true,          // Exit if ANY page fails during warmup
-        strictTemplateValidation: true, // Exit if template syntax is invalid
-
-        // === Security ===
-        allowExternalRedirects: false,  // Allow redirects to external URLs
-        allowedRedirectDomains: [],     // Whitelist of allowed domains for redirects
-
-        // === Cache Configuration ===
-        cacheMaxSize: 50 * 1024 * 1024  // 50MB in bytes (configurable)
-      };
-      fs.writeFileSync(configPath, JSON.stringify(defaultConfig, null, 2));
+      const defaults = configDefaults();
+      fs.writeFileSync(configPath, JSON.stringify(defaults, null, 2));
       console.log(success('Created config.json'));
     }
 
@@ -1548,7 +1507,7 @@ ${bright('Structure:')}
     guides/             ← Tutorial guides
     about.md            ← Static pages
   templates/            ← Themes
-    my-press/           ← Active theme
+    .defaylt/           ← Active theme
     .default/           ← Embedded defaults
   config.json           ← Site configuration
   redirects.json        ← URL redirects (optional)

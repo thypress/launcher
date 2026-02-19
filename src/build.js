@@ -1,11 +1,9 @@
-// SPDX-FileCopyrightText: 2026 Teo Costa (THYPRESS)
+// SPDX-FileCopyrightText: 2026 Teo Costa (THYPRESS <https://thypress.org>)
 // SPDX-License-Identifier: MPL-2.0
 
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import Handlebars from 'handlebars';
-import matter from 'gray-matter';
 import crypto from 'crypto';
 import zlib from 'zlib';
 import { promisify } from 'util';

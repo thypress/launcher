@@ -93,7 +93,7 @@ That's it. Your site is live at `http://localhost:3009`.
 
 THYPRESS auto-creates:
 - `content/pages/2024-01-01-welcome.md` (example page)
-- `templates/my-press/` (your theme folder)
+- `templates/.default/` (your theme folder)
 - `config.json` (site configuration)
 
 ### 3. Add Content
@@ -318,7 +318,7 @@ my-blog/
 │   │       └── reference.md
 │   └── about.md         → Static page
 ├── templates/           ← Themes
-│   └── my-press/
+│   └── .default/
 │       ├── index.html
 │       ├── page.html
 │       └── style.css
@@ -834,7 +834,7 @@ function hello(name) {
   "description": "A site powered by THYPRESS",
   "url": "https://example.com",
   "author": "Your Name",
-  "theme": "my-press",
+  "theme": ".default",
   "index": "custom-homepage-slug"
 }
 ```
@@ -847,7 +847,7 @@ function hello(name) {
 | `description` | string | No | `"A site powered by THYPRESS"` | Site description (meta tags) |
 | `url` | string | No | `"https://example.com"` | Production URL (for absolute URLs) |
 | `author` | string | No | `"Anonymous"` | Default author (overridable per page) |
-| `theme` | string | No | First in `templates/` | Theme folder name (e.g., `"my-press"`) |
+| `theme` | string | No | First in `templates/` | Theme folder name (e.g., `".default"`) |
 | `index` | string | No | `null` | Custom homepage slug (e.g., `"welcome"` uses `/welcome/` as `/`) |
 
 #### Minimal config.json
@@ -1659,7 +1659,7 @@ kill -9 <PID>
 ### Template Not Found
 
 **Check:**
-1. Template exists: `ls templates/my-press/custom.html`
+1. Template exists: `ls templates/.default/custom.html`
 2. Front matter: `template: custom`
 3. Theme is active in config.json
 

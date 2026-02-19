@@ -1,20 +1,11 @@
-// SPDX-FileCopyrightText: 2026 Teo Costa (THYPRESS)
+// SPDX-FileCopyrightText: 2026 Teo Costa (THYPRESS <https://thypress.org>)
 // SPDX-License-Identifier: MPL-2.0
 
 import { Feed } from 'feed';
 import { SitemapStream, streamToPromise } from 'sitemap';
 import { Readable } from 'stream';
 import { buildTemplateContext } from './utils/template-context.js';
-import { getEntriesSorted, getAllTags, getAllCategories, getAllSeries, slugify, normalizeToWebPath, getSiteConfig } from './utils/taxonomy.js';
-
-// ============================================================================
-// RE-EXPORTS DELETED - FORBIDDEN PATTERN
-// ============================================================================
-// Files needing these functions must import directly from source modules:
-// - theme-system.js for: loadTheme, scanAvailableThemes, setActiveTheme, validateTheme, THYPRESS_FEATURES
-// - content-processor.js for: loadAllContent, buildNavigationTree, processContentFile, optimizeImage, etc.
-// - utils/taxonomy.js for: getAllTags, getAllCategories, etc.
-// ============================================================================
+import { getEntriesSorted, getAllTags, getAllCategories, getAllSeries, slugify } from './utils/taxonomy.js';
 
 export const POSTS_PER_PAGE = 10;
 

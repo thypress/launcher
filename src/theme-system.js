@@ -1,11 +1,11 @@
-// SPDX-FileCopyrightText: 2026 Teo Costa (THYPRESS)
+// SPDX-FileCopyrightText: 2026 Teo Costa (THYPRESS <https://thypress.org>)
 // SPDX-License-Identifier: MPL-2.0
 
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import Handlebars from 'handlebars';
 import matter from 'gray-matter';
+import Handlebars from 'handlebars';
 import { success, error as errorMsg, warning, info, dim } from './utils/colors.js';
 import { DEFAULT_THEME_ID, EMBEDDED_TEMPLATES as STATIC_EMBEDDED_TEMPLATES } from './embedded-templates.js';
 

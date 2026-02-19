@@ -1,312 +1,266 @@
-/* assets/style.css */
-/* SPDX-License-Identifier: MPL-2.0
+/* assets/style.css
+ * SPDX-FileCopyrightText: 2026 Teo Costa (THYPRESS <https://thypress.org>)
+ * SPDX-License-Identifier: MPL-2.0
  *
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ * TABLE OF CONTENTS
+ * ─────────────────────────────────────────────────────────────────────────────
+ *  1. Design Tokens       — Custom properties: typography, layout, palette
+ *  2. Theme              — Light / dark semantic token assignment
+ *  3. Baseline           — Reset, focus, body, typographic defaults
+ *  4. Layout             — Body, main, sidebars (nav + TOC), breakpoints
+ *  5. Shared Components  — Buttons, tags, labels
+ *  6. Search             — Dialog, input, results, animations
+ *  7. Page Listing       — Index pages, pagination, page-nav
+ *  8. Article            — Prose content: media, blockquote, table, code
+ *  9. Admonitions        — Note / tip / warning / danger / info blocks
+ * ─────────────────────────────────────────────────────────────────────────────
  */
 
-/* ===== Minimal Tokens ===== */
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   1. DESIGN TOKENS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
 :root {
-  --font-sans:
-    Arial,
-    "Helvetica Neue",
-    "SF Pro Text",
-    "Segoe UI",
-    Roboto,
-    "Noto Sans",
-    "Liberation Sans",
-    ui-sans-serif,
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    sans-serif;
+  /* Typography */
+  --font-sans:  system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-serif: ui-serif, Georgia, "Times New Roman", serif;
+  --font-mono:  ui-monospace, "Cascadia Code", "Fira Code", monospace;
 
-  --font-serif:
-    Georgia,
-    "New York",
-    "SF Pro Serif",
-    "Iowan Old Style",
-    "Charter",
-    "Palatino Linotype",
-    Palatino,
-    "Book Antiqua",
-    "Times New Roman",
-    Times,
-    ui-serif,
-    serif;
+  /* Layout */
+  --sidebar-w:  250px;  /* nav sidebar + TOC min-width */
+  --toc-w:      300px;  /* TOC preferred width */
 
-  --sidebar-w: 250px;
-  --sidebar-w-max: 300px;
+  /* Border toggle — change to e.g. `1px solid var(--muted)` to border the whole UI at once */
   --border: none;
+
+  /* Raw palette — pure grayscale, light side */
+  --gray-100: #ffffff;
+  --gray-150: #1a1a1a;
+  --gray-200: #2e2e2e;
+  --gray-300: #4a4a4a;
+  --gray-400: #6b6b6b;
+  --gray-500: #9a9a9a;
+
+  /* Raw palette — dark side */
+  --gray-d-100: #0d0d0d;
+  --gray-d-150: #e6e6e6;
+  --gray-d-200: #d6d6d6;
+  --gray-d-300: #b0b0b0;
+  --gray-d-400: #9e9e9e;
+  --gray-d-500: #6f6f6f;
 }
 
-/* base palette — pure grayscale */
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   2. THEME
+   Semantic tokens resolve here. The :root default covers the no-JS case
+   (page rendered before the theme toggle script runs). The media query
+   respects system preference when no data-theme attribute is present yet.
+   html[data-theme] rules take full control once JS has set the attribute.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Default → light (no-JS / pre-script fallback) */
 :root {
-  --bg-light: #ffffff;
-  --bg-dark:  #0d0d0d;
-
-  --fg-light: #1a1a1a;
-  --fg-dark:  #e6e6e6;
-
-  /* accents — neutral emphasis (no color) */
-  --accent-light:   #2e2e2e;
-  --accent-dark:    #d6d6d6;
-
-  --accent-2-light: #4a4a4a;
-  --accent-2-dark:  #b0b0b0;
-
-  /* muted text tiers */
-  --muted-light:    #6b6b6b;
-  --muted-2-light:  #9a9a9a;
-
-  --muted-dark:     #9e9e9e;
-  --muted-2-dark:   #6f6f6f;
+  --bg:       var(--gray-100);
+  --fg:       var(--gray-150);
+  --accent:   var(--gray-200);
+  --accent-2: var(--gray-300);
+  --muted:    var(--gray-400);
+  --muted-2:  var(--gray-500);
 }
 
-/* Dark mode — only for theme toggle functionality */
+/* Respect system dark preference when JS hasn't set an attribute yet */
 @media (prefers-color-scheme: dark) {
-  :root { color-scheme: dark; }
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg:       var(--gray-d-100);
+    --fg:       var(--gray-d-150);
+    --accent:   var(--gray-d-200);
+    --accent-2: var(--gray-d-300);
+    --muted:    var(--gray-d-400);
+    --muted-2:  var(--gray-d-500);
+  }
 }
 
+/* Explicit light — JS has confirmed the user's choice */
 html[data-theme="light"] {
   color-scheme: light;
-  --bg: var(--bg-light);
-  --fg: var(--fg-light);
-  --accent: var(--accent-light);
-  --accent-2: var(--accent-2-light);
-  --muted: var(--muted-light);
-  --muted-2: var(--muted-2-light);
+  --bg:       var(--gray-100);
+  --fg:       var(--gray-150);
+  --accent:   var(--gray-200);
+  --accent-2: var(--gray-300);
+  --muted:    var(--gray-400);
+  --muted-2:  var(--gray-500);
 }
 
+/* Explicit dark — JS has confirmed the user's choice */
 html[data-theme="dark"] {
   color-scheme: dark;
-  --bg: var(--bg-dark);
-  --fg: var(--fg-dark);
-  --accent: var(--accent-dark);
-  --accent-2: var(--accent-2-dark);
-  --muted: var(--muted-dark);
-  --muted-2: var(--muted-2-dark);
+  --bg:       var(--gray-d-100);
+  --fg:       var(--gray-d-150);
+  --accent:   var(--gray-d-200);
+  --accent-2: var(--gray-d-300);
+  --muted:    var(--gray-d-400);
+  --muted-2:  var(--gray-d-500);
 }
 
-/* ===== Baseline ===== */
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   3. BASELINE
+   ═══════════════════════════════════════════════════════════════════════════ */
+
 *,
 *::before,
-*::after {
-  box-sizing: border-box;
-}
+*::after { box-sizing: border-box; }
 
-/*main, input, button, a { transition: background-color 0.5s ease, color 0.5s ease !important; }*/
+/* Remove default outline; restore an accessible custom indicator */
+:focus         { outline: none; }
+:focus-visible { box-shadow: 0 0 0 3px var(--muted-2); border-radius: 4px; }
 
-html, button {
-  font-family: monospace, Charter, "Bitstream Charter", "Sitka Text", Cambria, Georgia, serif;
+html {
+  font-family: var(--font-sans);
   line-height: 1.6;
-  /*font-size: 112.5%;*/
+  font-size: 17px;
+  -webkit-font-smoothing: antialiased;
 }
 
 body {
   margin: 0;
   display: flex;
-
   background: var(--bg);
   color: var(--fg);
 }
 
+/* Headings + strong label share the sans stack; serif is opt-in via class */
 h1, h2, h3, h4, h5, h6,
-a,
-kbd,
 .search-dialog-top strong {
-    font-family: monospace, "Arimo", Arial, sans-serif;
-    font-optical-sizing: auto;
-    font-style: normal;
-}
-
-h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-sans);
   line-height: 1.2;
-  scroll-margin-top: 2rem;
+  scroll-margin-top: 2rem; /* keeps heading visible below sticky headers */
 }
 
 a {
+  font-family: var(--font-sans);
   color: var(--accent);
   text-decoration: none;
 }
 a:hover { color: var(--accent-2); }
-/* ===== Layout ===== */
+
+kbd {
+  font-family: var(--font-mono);
+  display: inline-block;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   4. LAYOUT
+   ═══════════════════════════════════════════════════════════════════════════ */
+
 main {
   flex: 1;
-  padding: 1rem 2rem;
-  min-width: 0;
+  padding: 1rem 2rem 3rem 2rem;
+  min-width: 0; /* prevent flex blowout on long content */
 }
 
-@media (max-width: 768px) {
-  body { flex-direction: column; }
-  main { padding: 1rem; }
-}
-
-/* ===== Shared bordered UI bits ===== */
-.tool-button,
-.search-close,
-.tags a,
-.categories a,
-.series a,
-.page-nav a,
-article + aside,
-.admonition,
-article blockquote,
-article th,
-article td,
-.search-dialog { border: var(--border); }
-
-.tool-button,
-.search-close {
-  background: transparent;
-  cursor: pointer;
-}
-
-/* ===== Tools (Search + Theme) ===== */
-.tool-button {
-    padding: .375rem .5rem;
-    display: inline-flex;
-    align-items: center;
-    gap: .25rem;
-}
-.tool-kbd {
-    display: inline-flex;
-    align-items: center;
-    font-size: 14px;
-}
-
-/* ===== Left Sidebar - Navigation ===== */
+/* ── Left sidebar — site navigation ── */
 .sidebar-nav {
   width: var(--sidebar-w);
   min-width: var(--sidebar-w);
   padding: 0 1rem;
   overflow-y: auto;
-
   position: sticky;
   top: 0;
-
-  height: 100svh;
-  height: 100vh;
-
+  height: 100vh;       /* fallback */
+  height: 100svh;      /* small viewport height — excludes mobile browser chrome */
   background: var(--bg);
   color: var(--fg);
 }
 
 .sidebar-nav-top {
   display: flex;
+  align-items: baseline;
   gap: .5rem;
   padding: 1rem 0;
-
   position: sticky;
   top: 0;
-
-  background: inherit;
+  background: inherit; /* inherits sidebar bg so it masks scrolled content */
   z-index: 1;
-  align-items: baseline;
 }
 
-/*.sidebar-nav-top .tool-button { width: 100%; }*/
-.sidebar-nav-top #theme-toggle { width: auto; flex: 0 0 auto; }
+.sidebar-nav-top #theme-toggle { flex: 0 0 auto; }
 
-.sidebar-nav details { margin: .5rem 0 1rem 0; }
-.sidebar-nav summary {
-  color: var(--muted);
-  cursor: pointer;
-  padding: .25rem 0;
-  user-select: none;
-}
+.sidebar-nav details  { margin: .5rem 0 1rem; }
+.sidebar-nav summary  { color: var(--muted); cursor: pointer; padding: .25rem 0; user-select: none; }
+.sidebar-nav ul       { list-style: none; padding-left: 1rem; margin: 0; }
+.sidebar-nav nav      { font-size: 90%; }
 
-.sidebar-nav ul {
-  list-style: none;
-  padding-left: 1rem;
-  margin: 0;
-}
-
-kbd {
-  display: inline-block;
-  font-weight: bold;
-  line-height: 1;
-  white-space: nowrap;
-}
-
-@media (max-width: 768px) {
-  .sidebar-nav {
-    width: auto;
-    height: auto;
-    position: sticky;
-  }
-}
-
-/* ===== Right Sidebar - TOC ===== */
+/* ── Right sidebar — table of contents ── */
 .sidebar-toc {
-  width: var(--sidebar-w-max);
+  width: var(--toc-w);
   min-width: var(--sidebar-w);
   padding: 1rem;
   overflow-y: auto;
-
   position: sticky;
   top: 0;
-
+  height: 100vh;  /* fallback */
   height: 100svh;
-  height: 100vh;
 }
 
-.sidebar-toc h2 { font-size: 1rem; }
+.sidebar-toc h2      { font-size: 1rem; }
+.sidebar-toc .toc    { font-size: 90%; }
 
-.sidebar-nav nav,
-.sidebar-toc .toc { font-size: 90%; }
+.sidebar-toc .toc ul          { list-style: none; padding-left: 0; margin: 0; }
+.sidebar-toc .toc ul ul       { padding-left: 1rem; }
+.sidebar-toc .toc summary     { display: none; }
 
-.sidebar-toc .toc ul {
-  list-style: none;
-  padding-left: 0;
-  margin: 0;
-}
-
-.sidebar-toc .toc ul ul { padding-left: 1rem; }
-
-/* TOC link states - FUNCTIONAL, keep minimal */
+/* TOC link: slow fade-out when leaving, snappy entrance when active */
 .sidebar-toc .toc a {
   display: block;
   padding: .325rem;
-  text-decoration: none;
+  color: var(--muted);
   border-left: 2px solid transparent;
+  transition:
+    border-left-color 2.0s ease-out,
+    color             1.0s ease-out,
+    padding-left      0.8s ease-in-out;
 }
 
 .sidebar-toc .toc a.active {
-  border-left-color: currentColor;
+  color: var(--fg);
   font-weight: 700;
+  border-left-color: var(--fg);
+  padding-left: .6rem;
+  transition:
+    border-left-color 0.4s ease-in,
+    color             0.3s ease-in,
+    padding-left      0.3s cubic-bezier(0.34, 1.56, 0.64, 1); /* slight overshoot */
 }
 
-.sidebar-toc .toc summary { display: none; }
+/* ═══════════════════════════════════════════════════════════════════════════
+   5. SHARED COMPONENTS
+   ═══════════════════════════════════════════════════════════════════════════ */
 
-@media (max-width: 1024px) {
-  .sidebar-toc { display: none; }
+/* General-purpose icon/text button */
+.tool-button {
+  display: inline-flex;
+  align-items: center;
+  gap: .25rem;
+  padding: .375rem .5rem;
+  background: transparent;
+  border: var(--border);
+  cursor: pointer;
 }
 
-/* ===== Page listing ===== */
-.pages {
-  list-style: none;
-  padding: 0;
-  margin: 1.5rem 0;
+.tool-kbd {
+  display: inline-flex;
+  align-items: center;
+  font-size: 14px;
 }
 
-.pages-info { font-size: .875rem; color: var(--muted-2); }
-
-.pages li { padding: 1rem 0; }
-.pages h3 { margin: 0 0 .35rem; }
-
-/* Metadata (time elements) */
-.pages time,
-article > div time {
-  display: inline-block;
-  margin: .35rem 0;
-}
-
-/* Description paragraphs in page lists */
-.pages p { margin: .35rem 0; }
-
-/* ===== Tags / Categories / Series ===== */
+/* Taxonomy pills — tags, categories, series share the same visual */
 .tags, .categories, .series {
   display: inline-flex;
   flex-wrap: wrap;
@@ -317,42 +271,64 @@ article > div time {
 .tags a, .categories a, .series a {
   display: inline-block;
   font-size: .875rem;
-}
-
-/* ===== Search Box (in dialog) ===== */
-.search-box input {
-  width: 100%;
-  padding: .75rem;
-  font-size: 1rem;
   border: var(--border);
-  font-family: inherit;
 }
 
-.search-results {
-  display: none;
-  margin-top: .75rem;
-  padding: 1rem;
-  max-height: 55vh;
-  overflow-y: auto;
-}
 
-.search-result { padding: .75rem 0; }
-.search-result h4 { margin: 0 0 .35rem; }
+/* ═══════════════════════════════════════════════════════════════════════════
+   6. SEARCH
+   ═══════════════════════════════════════════════════════════════════════════ */
 
-/* ===== Search Dialog - KEEP AS IS ===== */
+/* ── Dialog shell ── */
 .search-dialog {
   padding: 0;
   width: min(760px, calc(100% - 2rem));
-  box-shadow: 0 8px 32px rgba(0, 0, 0, .2);
+  max-height: 85vh;
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+  overflow: hidden;         /* clips results so they don't spill outside rounded corners */
+  border-radius: .5rem;
+  border: var(--border);
+  box-shadow: 0 8px 14px rgba(0, 0, 0, .2);
   background: var(--bg);
+
+  /* Closed state */
+  opacity: 0;
+}
+
+.search-dialog[open] {
+  opacity: 1;
+  transition:
+    opacity   .15s ease-out,
+    transform .15s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* @starting-style lets the browser see the pre-open state so the
+   transition actually plays from opacity:0 → 1 on first open */
+@starting-style {
+  .search-dialog[open] { opacity: 0; }
 }
 
 .search-dialog::backdrop {
+  transition: backdrop-filter .15s ease;
+}
+
+.search-dialog[open]::backdrop {
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
 }
 
-.search-dialog-inner { padding: 1rem; }
+@starting-style {
+  .search-dialog[open]::backdrop { backdrop-filter: blur(0px); }
+}
+
+/* ── Dialog interior ── */
+.search-dialog-inner {
+  display: flex;
+  flex-direction: column;
+  padding: 1rem;
+  max-height: 85vh; /* must match dialog max-height */
+}
 
 .search-dialog-top {
   display: flex;
@@ -362,213 +338,168 @@ article > div time {
   margin-bottom: .75rem;
 }
 
-.search-dialog-top strong { font-size: 1rem; }
+.search-dialog-top strong { font-size: 1.125rem; }
 
-.search-close { padding: .25rem .6rem; }
-
-/* ===== Pagination ===== */
-.pagination {
-  text-align: center;
-  margin: 1.5rem 0;
+.search-close {
+  padding: .25rem .6rem;
+  background: transparent;
+  border: var(--border);
+  cursor: pointer;
 }
+
+/* ── Search input ── */
+.search-box input {
+  width: 100%;
+  padding: .75rem;
+  font-size: 1rem;
+  font-family: inherit;
+  border-radius: .5rem;
+  border: var(--border);
+}
+
+/* ── Results list (scrollable, not the whole dialog) ── */
+.search-results {
+  overflow-y: auto;
+  flex-shrink: 1;
+  margin-top: .75rem;
+}
+
+.search-result       { padding: .5rem; }
+.search-result h4    { margin: 0 0 .35rem; }
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   7. PAGE LISTING
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Index listing ── */
+.pages             { list-style: none; padding: 0; margin: 1.5rem 0; }
+.pages-info        { font-size: .875rem; color: var(--muted-2); }
+.pages li          { padding: 1rem 0; }
+.pages h3          { margin: 0 0 .35rem; }
+.pages p           { margin: .35rem 0; }
+
+.pages time,
+article > div time { display: inline-block; margin: .35rem 0; }
+
+/* ── Pagination ── */
+.pagination { text-align: center; margin: 1.5rem 0; }
 
 .pagination a,
 .pagination strong,
-.pagination span {
-  display: inline-block;
-  padding: .4rem .65rem;
-  margin: 0 .15rem;
-}
+.pagination span   { display: inline-block; padding: .4rem .65rem; margin: 0 .15rem; }
 
-/* ===== Page Navigation ===== */
-.page-nav {
-  display: flex;
-  justify-content: space-between;
-  margin: 2rem 0;
-  gap: 1rem;
-}
-
-.page-nav > div { flex: 1; }
+/* ── Prev / next navigation ── */
+.page-nav                  { display: flex; justify-content: space-between; margin: 2rem 0; gap: 1rem; }
+.page-nav > div            { flex: 1; }
 .page-nav > div:last-child { text-align: right; }
+.page-nav a                { display: block; padding: 1rem; border: var(--border); }
 
-.page-nav a {
-  display: block;
-  padding: 1rem;
-}
-
-@media (max-width: 768px) {
-  .page-nav { flex-direction: column; }
-  .page-nav > div:last-child { text-align: left; }
-  .tool-kbd { display: none; }
-}
-
-/* ===== Related Pages (aside) ===== */
-article + aside {
-  margin: 2rem 0;
-  padding: 1rem;
-}
-
-article + aside ul {
-  list-style: none;
-  padding: 0;
-  margin: .75rem 0 0;
-}
-
+/* ── Related pages aside ── */
+article + aside    { margin: 2rem 0; padding: 1rem; border: var(--border); }
+article + aside ul { list-style: none; padding: 0; margin: .75rem 0 0; }
 article + aside li { padding: .75rem 0; }
 
-/* ===== Admonitions ===== */
-/*.admonition {
-  margin: 1.5rem 0;
-  padding: 1rem;
-  border-left: 4px solid;
-}
 
-.admonition-title {
-  font-weight: 700;
-  margin: 0 0 .5rem;
-}
+/* ═══════════════════════════════════════════════════════════════════════════
+   8. ARTICLE
+   ═══════════════════════════════════════════════════════════════════════════ */
 
-.admonition-content p { margin: .5rem 0; }*/
-/* ADD THESE STYLES to the END of templates/.default/style.css */
+/* ── Replaced / embedded media ──
+   img/video get height:auto to preserve aspect ratio.
+   svg/canvas only get max-width — forcing height:auto or display:block
+   on inline SVG icons or sized <canvas> elements breaks their layout. */
 
-/* ===== Admonitions - Minimalist, Grayscale ===== */
-.admonition {
-  margin: 1.5rem 0;
-  padding: 1rem;
-  border-left: 3px solid;
-  background: transparent;
-}
+article h1 { letter-spacing: -0.025em; }
+article h2 { letter-spacing: -0.02em; }
+article h3 { letter-spacing: -0.015em; }
 
-.admonition-title {
-  font-weight: 700;
-  font-size: 0.875rem;
-  letter-spacing: 0.05em;
-  margin-bottom: 0.5rem;
-}
+article img,
+article video       { max-width: 100%; height: auto; display: block; }
 
-.admonition-content p {
-  margin: 0.5rem 0;
-}
+article svg,
+article canvas      { max-width: 100%; }
 
-/* Type-specific borders - Grayscale only (no emojis, no colors) */
-.admonition-note {
-  border-left-color: #6b6b6b;
-}
+article picture     { display: contents; }
 
-.admonition-tip {
-  border-left-color: #2e2e2e;
-}
+article iframe      { width: 100%; max-width: 100%; border: 0; }
 
-.admonition-warning {
-  border-left-color: #4a4a4a;
-}
+/* ── Blockquote ── */
+/* border: var(--border) adds box-border when the token is set;
+   border-left always overrides the left side for the accent stripe */
+article blockquote  { margin: 1.5rem 0; padding: 1rem; border: var(--border); border-left: 4px solid; }
 
-.admonition-danger {
-  border-left-color: #1a1a1a;
-}
+/* ── Lists ── */
+article ul,
+article ol          { padding-left: 2rem; margin: 1rem 0; }
+article li          { margin: .35rem 0; }
 
-.admonition-info {
-  border-left-color: #9a9a9a;
-}
+/* ── Tables ── */
+article table       { width: 100%; border-collapse: collapse; margin: 1.5rem 0; display: block; overflow-x: auto; }
+article th,
+article td          { padding: .6rem .75rem; text-align: left; border: var(--border); }
 
-/* Dark mode (invert hierarchy for contrast) */
-html[data-theme="dark"] .admonition-note {
-  border-left-color: #9a9a9a;
-}
+/* ── Code blocks ── */
+article pre         { margin: 1.5rem 0; overflow-x: auto; }
+article pre code    { display: block; padding: 1rem; font-size: .9375rem; }
 
-html[data-theme="dark"] .admonition-tip {
-  border-left-color: #d6d6d6;
-}
 
-html[data-theme="dark"] .admonition-warning {
-  border-left-color: #b0b0b0;
-}
+/* ═══════════════════════════════════════════════════════════════════════════
+   9. ADMONITIONS
+   Admonition border-left colors use semantic tokens so they respond to
+   theme changes automatically — no separate dark-mode overrides needed.
+   Severity hierarchy: info < note < warning < danger < tip (most emphatic)
+   ═══════════════════════════════════════════════════════════════════════════ */
 
-html[data-theme="dark"] .admonition-danger {
-  border-left-color: #e6e6e6;
-}
-
-html[data-theme="dark"] .admonition-info {
-  border-left-color: #6f6f6f;
-}
-
-/* GitHub-style alerts (from markdown-it-github-alerts) */
+.admonition,
 .markdown-alert {
   margin: 1.5rem 0;
   padding: 1rem;
-  border-left: 3px solid;
+  border: var(--border);        /* box-border when token is set */
+  border-left: 3px solid;       /* always overrides left side for the severity stripe */
   background: transparent;
 }
 
+.admonition-title,
 .markdown-alert-title {
   font-weight: 700;
-  font-size: 0.875rem;
-  letter-spacing: 0.05em;
-  margin-bottom: 0.5rem;
+  font-size: .875rem;
+  letter-spacing: .05em;
+  margin-bottom: .5rem;
 }
 
-.markdown-alert-note { border-left-color: #6b6b6b; }
-.markdown-alert-tip { border-left-color: #2e2e2e; }
-.markdown-alert-important { border-left-color: #4a4a4a; }
-.markdown-alert-warning { border-left-color: #4a4a4a; }
-.markdown-alert-caution { border-left-color: #1a1a1a; }
+.admonition-content p,
+.markdown-alert p { margin: .5rem 0; }
 
-html[data-theme="dark"] .markdown-alert-note { border-left-color: #9a9a9a; }
-html[data-theme="dark"] .markdown-alert-tip { border-left-color: #d6d6d6; }
-html[data-theme="dark"] .markdown-alert-important { border-left-color: #b0b0b0; }
-html[data-theme="dark"] .markdown-alert-warning { border-left-color: #b0b0b0; }
-html[data-theme="dark"] .markdown-alert-caution { border-left-color: #e6e6e6; }
+/* ── Type mapping → grayscale severity ── */
+.admonition-info,
+.markdown-alert-note      { border-left-color: var(--muted-2); }  /* quietest */
 
-/* ===== Article Content ===== */
-article img,
-article picture,
-article video,
-article svg,
-article canvas {
-  max-width: 100%;
-  height: auto;
-  display: block;
+.admonition-note,
+.markdown-alert-important { border-left-color: var(--muted); }
+
+.admonition-warning,
+.markdown-alert-warning,
+.markdown-alert-caution   { border-left-color: var(--accent-2); }
+
+.admonition-danger        { border-left-color: var(--accent); }
+
+.admonition-tip,
+.markdown-alert-tip       { border-left-color: var(--fg); }       /* loudest */
+
+/* ── Responsive breakpoints ── */
+
+/* Narrow: collapse to single-column */
+@media (max-width: 768px) {
+  body          { flex-direction: column; }
+  main          { padding: 1rem; }
+  .sidebar-nav  { width: auto; height: auto; position: sticky; }
+  .page-nav     { flex-direction: column; }
+  .page-nav > div:last-child { text-align: left; }
 }
 
-article iframe {
-  width: 100%;
-  max-width: 100%;
-  border: 0;
-}
-
-article blockquote {
-  margin: 1.5rem 0;
-  padding: 1rem;
-  border-left: 4px solid;
-}
-
-article ul, article ol {
-  padding-left: 2rem;
-  margin: 1rem 0;
-}
-
-article li { margin: .35rem 0; }
-
-article table {
-  width: 100%;
-  border-collapse: collapse;
-  margin: 1.5rem 0;
-  display: block;
-  overflow-x: auto;
-}
-
-article th, article td {
-  padding: .6rem .75rem;
-  text-align: left;
-}
-
-article pre {
-  margin: 1.5rem 0;
-  overflow-x: auto;
-}
-
-article pre code {
-  display: block;
-  padding: 1rem;
-  font-size: .9375rem;
+/* Medium: hide TOC and keyboard shortcut hints, not enough room */
+@media (max-width: 1024px) {
+  .tool-kbd    { display: none; }
+  .sidebar-toc { display: none; }
 }
